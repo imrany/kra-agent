@@ -1,3 +1,14 @@
+export interface User {
+  id: number;
+  username: string;
+  role: 'admin' | 'user';
+  name?: string;
+  device_info?: string;
+  location?: string;
+  status?: string;
+  created_at?: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'model';
@@ -22,10 +33,10 @@ export interface UserProfile {
   name: string;
   kraId: string;
   pin: string;
-  status: 'Active' | 'Inactive';
+  status: string;
 }
 
 export interface Credentials {
   pin: string;
-  password: string;
+  password?: string;
 }

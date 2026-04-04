@@ -29,7 +29,7 @@ import { cn } from '../lib/utils';
 import { Message, Credentials, AutomationStep } from '../types';
 import { useNavigate } from 'react-router-dom';
 
-const Sidebar = ({ isOpen, onClose, onTaskClick, navigate }: { isOpen: boolean, onClose: () => void, onTaskClick: (label: string) => void, navigate: (path: string) => void }) => {
+const Sidebar = ({ isOpen, onClose, onTaskClick, navigate, onClearChat }: { isOpen: boolean, onClose: () => void, onTaskClick: (label: string) => void, navigate: (path: string) => void, onClearChat: () => void }) => {
   const quickTasks = [
     { id: 'nil', label: 'Nil Returns', icon: FileText, badge: 'Auto' },
     { id: 'compliance', label: 'Compliance Check', icon: ShieldCheck, badge: 'Crawler' },
@@ -106,6 +106,13 @@ const Sidebar = ({ isOpen, onClose, onTaskClick, navigate }: { isOpen: boolean, 
 
           <div className="pt-6 border-t border-surface-container-high space-y-2">
             <button 
+              onClick={onClearChat}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-on-surface-variant hover:bg-error/5 hover:text-error transition-all"
+            >
+              <Trash2 size={18} />
+              <span className="font-medium">Clear Chat</span>
+            </button>
+            <button 
               onClick={() => {
                 navigate('/settings');
                 onClose();
@@ -152,10 +159,11 @@ const Dashboard = () => {
       }
 
       try {
-        const [credsRes, prefsRes, userRes] = await Promise.all([
+        const [credsRes, prefsRes, userRes, messagesRes] = await Promise.all([
           fetch('/api/credentials', { headers: { Authorization: `Bearer ${token}` } }),
           fetch('/api/preferences', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+          fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } }),
+          fetch('/api/messages', { headers: { Authorization: `Bearer ${token}` } })
         ]);
         
         if (credsRes.status === 401) {
@@ -163,8 +171,8 @@ const Dashboard = () => {
           return;
         }
 
-        if (!credsRes.ok || !prefsRes.ok || !userRes.ok) {
-          throw new Error(`Server error: ${credsRes.status} ${prefsRes.status} ${userRes.status}`);
+        if (!credsRes.ok || !prefsRes.ok || !userRes.ok || !messagesRes.ok) {
+          throw new Error(`Server error: ${credsRes.status} ${prefsRes.status} ${userRes.status} ${messagesRes.status}`);
         }
 
         const contentType = credsRes.headers.get("content-type");
@@ -175,10 +183,12 @@ const Dashboard = () => {
         const credsData = await credsRes.json();
         const prefsData = await prefsRes.json();
         const userData = await userRes.json();
+        const messagesData = await messagesRes.json();
         
         setCreds(credsData);
         setPreferences(prefsData);
         setUser(userData);
+        setMessages(messagesData);
       } catch (error) {
         console.error("Failed to fetch data:", error);
       }
@@ -189,6 +199,28 @@ const Dashboard = () => {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
+
+  const saveMessage = async (msg: Partial<Message>) => {
+    const token = localStorage.getItem('token');
+    try {
+      await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          type: msg.role === 'user' ? 'user' : (msg.type === 'automation' ? 'automation' : 'bot'),
+          text: msg.text,
+          automationSteps: msg.automationSteps,
+          extractedData: msg.extractedData,
+          receiptNumber: (msg as any).receiptNumber
+        })
+      });
+    } catch (err) {
+      console.error("Failed to save message:", err);
+    }
+  };
 
   const handleSend = async (textOverride?: string) => {
     const messageText = textOverride || input;
@@ -202,6 +234,7 @@ const Dashboard = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    saveMessage(userMessage);
     setInput('');
     setIsTyping(true);
 
@@ -225,19 +258,23 @@ const Dashboard = () => {
           config: { systemInstruction: "You are a KRA AI Agent. You help users with Kenyan tax tasks. You can automate tasks on iTax." }
         });
 
-        setMessages(prev => [...prev, {
+        const botMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: 'model',
           text: response.text || "I'm here to help with your KRA tasks.",
           timestamp: Date.now()
-        }]);
+        };
+        setMessages(prev => [...prev, botMsg]);
+        saveMessage(botMsg);
       } catch (error) {
-        setMessages(prev => [...prev, {
+        const errorMsg: Message = {
           id: Date.now().toString(),
           role: 'model',
           text: "I'm having trouble connecting to my AI core. Please check the system settings.",
           timestamp: Date.now()
-        }]);
+        };
+        setMessages(prev => [...prev, errorMsg]);
+        saveMessage(errorMsg);
       } finally {
         setIsTyping(false);
       }
@@ -288,16 +325,34 @@ const Dashboard = () => {
     }
 
     await new Promise(r => setTimeout(r, 1000));
-    setMessages(prev => prev.map(m => m.id === automationMsg.id ? {
-      ...m,
+    const finalMsg: Message = {
+      ...automationMsg,
       text: data.success 
         ? `✅ **Task Completed!** Your ${type.replace('-', ' ')} has been processed successfully.\n\n**Receipt Number:** \`${data.receiptNumber}\``
         : `❌ **Automation Failed.** I encountered an issue while performing the task.\n\n**Manual Instructions:**\n${data.manualInstructions}`,
       automationSteps: data.steps,
       screenshot: data.screenshot,
-      extractedData: data.extractedData
-    } : m));
+      extractedData: data.extractedData,
+      receiptNumber: data.receiptNumber
+    };
+    setMessages(prev => prev.map(m => m.id === automationMsg.id ? finalMsg : m));
+    saveMessage(finalMsg);
     setIsTyping(false);
+  };
+
+  const handleClearChat = async () => {
+    if (!window.confirm("Are you sure you want to clear your chat history?")) return;
+    
+    const token = localStorage.getItem('token');
+    try {
+      await fetch('/api/messages', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMessages([]);
+    } catch (err) {
+      console.error("Failed to clear chat:", err);
+    }
   };
 
   return (
@@ -307,6 +362,7 @@ const Dashboard = () => {
         onClose={() => setIsSidebarOpen(false)} 
         onTaskClick={(label) => handleSend(`Help me with ${label}`)}
         navigate={navigate}
+        onClearChat={handleClearChat}
       />
 
       <main className="flex-1 flex flex-col min-w-0 relative">

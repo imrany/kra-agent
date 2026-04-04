@@ -68,6 +68,18 @@ async function initDb() {
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        type TEXT NOT NULL,
+        text TEXT NOT NULL,
+        automation_steps TEXT,
+        extracted_data TEXT,
+        receipt_number TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+      );
     `);
 
     // Migration: Ensure user_id exists in credentials (for older versions)
@@ -112,6 +124,17 @@ async function initDb() {
         CREATE TABLE IF NOT EXISTS settings (
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS messages (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id),
+          type TEXT NOT NULL,
+          text TEXT NOT NULL,
+          automation_steps TEXT,
+          extracted_data TEXT,
+          receipt_number TEXT,
+          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
 
@@ -403,6 +426,42 @@ async function startServer() {
       pin: "A00XXXXXXXXZ",
       status: "Active"
     });
+  });
+
+  // API: Messages
+  app.get("/api/messages", authenticate, async (req: any, res) => {
+    const rows: any = await query("SELECT * FROM messages WHERE user_id = ? ORDER BY timestamp ASC", [req.user.id]);
+    const messages = (rows || []).map((row: any) => ({
+      id: row.id.toString(),
+      type: row.type,
+      text: row.text,
+      timestamp: new Date(row.timestamp).getTime(),
+      automationSteps: row.automation_steps ? JSON.parse(row.automation_steps) : undefined,
+      extractedData: row.extracted_data ? JSON.parse(row.extracted_data) : undefined,
+      receiptNumber: row.receipt_number
+    }));
+    res.json(messages);
+  });
+
+  app.post("/api/messages", authenticate, async (req: any, res) => {
+    const { type, text, automationSteps, extractedData, receiptNumber } = req.body;
+    const result: any = await query(
+      "INSERT INTO messages (user_id, type, text, automation_steps, extracted_data, receipt_number) VALUES (?, ?, ?, ?, ?, ?)",
+      [
+        req.user.id,
+        type,
+        text,
+        automationSteps ? JSON.stringify(automationSteps) : null,
+        extractedData ? JSON.stringify(extractedData) : null,
+        receiptNumber || null
+      ]
+    );
+    res.json({ success: true, id: result.lastInsertRowid || result.id });
+  });
+
+  app.delete("/api/messages", authenticate, async (req: any, res) => {
+    await query("DELETE FROM messages WHERE user_id = ?", [req.user.id]);
+    res.json({ success: true });
   });
 
   // Automation Endpoints (Secured)

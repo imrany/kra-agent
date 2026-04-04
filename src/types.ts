@@ -18,6 +18,7 @@ export interface Message {
   automationSteps?: AutomationStep[];
   screenshot?: string;
   extractedData?: any;
+  receiptNumber?: string;
 }
 
 export interface AutomationStep {

@@ -1,13 +1,27 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Loader2, AlertCircle, HelpCircle } from 'lucide-react';
+import CustomDialog from '../components/CustomDialog';
 
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [dialog, setDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'alert' | 'confirm';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'alert',
+    onConfirm: () => {}
+  });
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -90,7 +104,13 @@ const Login = () => {
                 </label>
                 <button 
                   type="button"
-                  onClick={() => alert("For security, password resets must be performed by a system administrator. If you are the admin and forgot your password, please check the server logs for the registered admin username or reset the database.")}
+                  onClick={() => setDialog({
+                    isOpen: true,
+                    title: "Password Reset",
+                    message: "For security, password resets must be performed by a system administrator. If you are the admin and forgot your password, please check the server logs for the registered admin username or reset the database.",
+                    type: 'alert',
+                    onConfirm: () => setDialog(prev => ({ ...prev, isOpen: false }))
+                  })}
                   className="text-[10px] font-bold text-primary hover:underline uppercase tracking-wider"
                 >
                   Forgot?
@@ -128,6 +148,15 @@ const Login = () => {
           </div>
         </div>
       </motion.div>
+
+      <CustomDialog
+        isOpen={dialog.isOpen}
+        title={dialog.title}
+        message={dialog.message}
+        type={dialog.type}
+        onConfirm={dialog.onConfirm}
+        onCancel={() => setDialog(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

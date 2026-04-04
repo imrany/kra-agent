@@ -19,7 +19,8 @@ import {
   CreditCard,
   RefreshCw,
   Search,
-  ChevronRight
+  ChevronRight,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -27,6 +28,7 @@ import { GoogleGenAI } from "@google/genai";
 import { cn } from '../lib/utils';
 import { Message, Credentials, AutomationStep } from '../types';
 import { useNavigate } from 'react-router-dom';
+import CustomDialog from '../components/CustomDialog';
 
 const Sidebar = ({ isOpen, onClose, onTaskClick, navigate, onClearChat }: { isOpen: boolean, onClose: () => void, onTaskClick: (label: string) => void, navigate: (path: string) => void, onClearChat: () => void }) => {
   const quickTasks = [
@@ -138,6 +140,19 @@ const Dashboard = () => {
   const [activeTask, setActiveTask] = useState<{ id: string, status: string, prompt?: string } | null>(null);
   const [answer, setAnswer] = useState('');
   const [user, setUser] = useState<any>(null);
+  const [dialog, setDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'alert' | 'confirm';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'alert',
+    onConfirm: () => {}
+  });
   const chatEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -370,18 +385,26 @@ const Dashboard = () => {
   };
 
   const handleClearChat = async () => {
-    if (!window.confirm("Are you sure you want to clear your chat history?")) return;
-    
-    const token = localStorage.getItem('token');
-    try {
-      await fetch('/api/messages', {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setMessages([]);
-    } catch (err) {
-      console.error("Failed to clear chat:", err);
-    }
+    setDialog({
+      isOpen: true,
+      title: "Clear Chat History",
+      message: "Are you sure you want to clear your chat history? This action cannot be undone.",
+      type: 'confirm',
+      onConfirm: async () => {
+        const token = localStorage.getItem('token');
+        try {
+          await fetch('/api/messages', {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setMessages([]);
+          setDialog(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          console.error("Failed to clear chat:", err);
+          setDialog(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
   };
 
   return (
@@ -471,18 +494,7 @@ const Dashboard = () => {
                     msg.role === 'user' ? "flex-row-reverse" : ""
                   )}
                 >
-                  <div className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-1",
-                    msg.role === 'model' ? "bg-primary/10 text-primary" : "bg-surface-container-highest text-on-surface"
-                  )}>
-                    {msg.role === 'model' ? <Bot size={18} /> : <User size={18} />}
-                  </div>
                   <div className={cn("flex-1 space-y-1", msg.role === 'user' ? "text-right" : "")}>
-                    <div className="flex items-center gap-2 mb-1 px-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
-                        {msg.role === 'model' ? 'KRA Agent' : 'You'}
-                      </span>
-                    </div>
                     <div className={cn(
                       "inline-block p-4 rounded-2xl text-sm leading-relaxed w-full",
                       msg.role === 'model' 
@@ -591,9 +603,6 @@ const Dashboard = () => {
 
             {isTyping && (
               <div className="flex gap-4">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-1">
-                  <Bot size={18} />
-                </div>
                 <div className="bg-inherit text-on-surface p-4 rounded-2xl flex items-center gap-2">
                   <Loader2 size={16} className="animate-spin text-primary" />
                   <span className="text-xs font-medium text-on-surface-variant">
@@ -635,6 +644,15 @@ const Dashboard = () => {
           </div>
         </footer>
       </main>
+
+      <CustomDialog
+        isOpen={dialog.isOpen}
+        title={dialog.title}
+        message={dialog.message}
+        type={dialog.type}
+        onConfirm={dialog.onConfirm}
+        onCancel={() => setDialog(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

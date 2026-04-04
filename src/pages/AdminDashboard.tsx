@@ -24,6 +24,7 @@ import {
 import { User } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
+import CustomDialog from '../components/CustomDialog';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<'users' | 'settings' | 'database'>('users');
@@ -47,6 +48,19 @@ const AdminDashboard = () => {
     }
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [dialog, setDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'alert' | 'confirm';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'alert',
+    onConfirm: () => {}
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -94,13 +108,31 @@ const AdminDashboard = () => {
       });
       const data = await res.json();
       if (data.success) {
-        alert('Database configuration updated successfully!');
+        setDialog({
+          isOpen: true,
+          title: 'Success',
+          message: 'Database configuration updated successfully!',
+          type: 'alert',
+          onConfirm: () => setDialog(prev => ({ ...prev, isOpen: false }))
+        });
       } else {
-        alert('Error: ' + data.error);
+        setDialog({
+          isOpen: true,
+          title: 'Error',
+          message: 'Error: ' + data.error,
+          type: 'alert',
+          onConfirm: () => setDialog(prev => ({ ...prev, isOpen: false }))
+        });
       }
     } catch (err) {
       console.error(err);
-      alert('Failed to save database configuration');
+      setDialog({
+        isOpen: true,
+        title: 'Error',
+        message: 'Failed to save database configuration',
+        type: 'alert',
+        onConfirm: () => setDialog(prev => ({ ...prev, isOpen: false }))
+      });
     } finally {
       setIsSaving(false);
     }
@@ -120,17 +152,26 @@ const AdminDashboard = () => {
   };
 
   const handleDeleteUser = async (userId: number) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
-    try {
-      const token = localStorage.getItem('token');
-      await fetch(`/api/admin/users/${userId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      fetchData();
-    } catch (err) {
-      console.error(err);
-    }
+    setDialog({
+      isOpen: true,
+      title: 'Delete User',
+      message: 'Are you sure you want to delete this user? This action cannot be undone.',
+      type: 'confirm',
+      onConfirm: async () => {
+        try {
+          const token = localStorage.getItem('token');
+          await fetch(`/api/admin/users/${userId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          fetchData();
+          setDialog(prev => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          console.error(err);
+          setDialog(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
   };
 
   const handleSaveSettings = async () => {
@@ -149,7 +190,13 @@ const AdminDashboard = () => {
           })
         )
       );
-      alert('Settings saved successfully!');
+      setDialog({
+        isOpen: true,
+        title: 'Success',
+        message: 'Settings saved successfully!',
+        type: 'alert',
+        onConfirm: () => setDialog(prev => ({ ...prev, isOpen: false }))
+      });
     } catch (err) {
       console.error(err);
     } finally {
@@ -537,6 +584,15 @@ const AdminDashboard = () => {
           )}
         </AnimatePresence>
       </main>
+
+      <CustomDialog
+        isOpen={dialog.isOpen}
+        title={dialog.title}
+        message={dialog.message}
+        type={dialog.type}
+        onConfirm={dialog.onConfirm}
+        onCancel={() => setDialog(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

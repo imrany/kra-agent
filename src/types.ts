@@ -6,7 +6,6 @@ export interface Message {
   type?: 'text' | 'automation' | 'info';
   automationSteps?: AutomationStep[];
   screenshot?: string;
-  diagram?: string;
 }
 
 export interface AutomationStep {
@@ -14,6 +13,8 @@ export interface AutomationStep {
   label: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   timestamp: number;
+  screenshot?: string;
+  error?: string;
 }
 
 export interface UserProfile {

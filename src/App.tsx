@@ -461,10 +461,11 @@ export default function App() {
     await new Promise(r => setTimeout(r, 1000));
     setMessages(prev => prev.map(m => m.id === automationMsg.id ? {
       ...m,
-      text: `✅ **Task Completed!** Your ${type.replace('-', ' ')} has been processed successfully.\n\n**Receipt Number:** \`${data.receiptNumber}\``,
+      text: data.success 
+        ? `✅ **Task Completed!** Your ${type.replace('-', ' ')} has been processed successfully.\n\n**Receipt Number:** \`${data.receiptNumber}\``
+        : `❌ **Automation Failed.** I encountered an issue while performing the task.\n\n**Manual Instructions:**\n${data.manualInstructions}`,
       automationSteps: data.steps,
-      screenshot: data.screenshot,
-      diagram: data.diagram
+      screenshot: data.screenshot
     } : m));
     setIsTyping(false);
   };
@@ -583,55 +584,66 @@ export default function App() {
                         <div className="p-4 border-b border-surface-container-high bg-surface-container-low flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Search size={14} className="text-primary" />
-                            <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Thinking Process</span>
+                            <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Live Automation Log</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-mono text-on-surface-variant">Live Browser</span>
+                            <span className="text-[10px] font-mono text-on-surface-variant">Playwright Engine</span>
                             <div className="w-1.5 h-1.5 bg-secondary rounded-full animate-pulse"></div>
                           </div>
                         </div>
-                        <div className="p-4 space-y-3">
+                        <div className="divide-y divide-surface-container-high">
                           {msg.automationSteps.map((step) => (
-                            <div key={step.id} className="flex items-center gap-3 text-xs">
-                              {step.status === 'completed' ? (
-                                <CheckCircle2 size={14} className="text-primary" />
-                              ) : step.status === 'running' ? (
-                                <Loader2 size={14} className="text-primary animate-spin" />
-                              ) : (
-                                <Circle size={14} className="text-on-surface-variant/30" />
+                            <details key={step.id} className="group">
+                              <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-surface-container-low transition-colors list-none">
+                                <div className="flex items-center gap-3 text-xs">
+                                  {step.status === 'completed' ? (
+                                    <CheckCircle2 size={14} className="text-primary" />
+                                  ) : step.status === 'running' ? (
+                                    <Loader2 size={14} className="text-primary animate-spin" />
+                                  ) : step.status === 'failed' ? (
+                                    <X size={14} className="text-error" />
+                                  ) : (
+                                    <Circle size={14} className="text-on-surface-variant/30" />
+                                  )}
+                                  <span className={cn(
+                                    "font-medium",
+                                    step.status === 'completed' ? "text-on-surface" : "text-on-surface-variant"
+                                  )}>
+                                    {step.label}
+                                  </span>
+                                </div>
+                                {step.screenshot && (
+                                  <ChevronRight size={14} className="text-on-surface-variant transition-transform group-open:rotate-90" />
+                                )}
+                              </summary>
+                              {step.screenshot && (
+                                <div className="p-4 bg-surface-container-low border-t border-surface-container-high">
+                                  <div className="mb-2 flex items-center justify-between">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Step Screenshot</span>
+                                  </div>
+                                  <img 
+                                    src={step.screenshot} 
+                                    alt={step.label} 
+                                    className="w-full rounded-lg border border-surface-container-high shadow-sm"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                </div>
                               )}
-                              <span className={cn(
-                                "font-medium",
-                                step.status === 'completed' ? "text-on-surface" : "text-on-surface-variant"
-                              )}>
-                                {step.label}
-                              </span>
-                            </div>
+                            </details>
                           ))}
                         </div>
-                        {msg.diagram && (
-                          <div className="p-4 bg-surface-container-low border-t border-surface-container-high">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Flow Diagram</span>
+                        
+                        {msg.text.includes('failed') && (
+                          <div className="p-4 bg-error/5 border-t border-error/10">
+                            <div className="flex items-center gap-2 mb-2">
+                              <HelpCircle size={14} className="text-error" />
+                              <span className="text-xs font-bold text-error uppercase tracking-wider">Manual Instructions</span>
                             </div>
-                            <div className="bg-white p-4 rounded-lg border border-surface-container-high" dangerouslySetInnerHTML={{ __html: msg.diagram }} />
-                          </div>
-                        )}
-                        {msg.screenshot && (
-                          <div className="p-4 bg-surface-container-low border-t border-surface-container-high">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Live Screenshot</span>
-                              <button className="text-[10px] text-primary font-bold flex items-center gap-1">
-                                <ExternalLink size={10} />
-                                View Full
-                              </button>
+                            <div className="text-xs text-on-surface-variant prose prose-sm max-w-none">
+                              <Markdown>
+                                {msg.text.split('Manual Instructions:')[1] || "Please try performing this task manually on the iTax portal."}
+                              </Markdown>
                             </div>
-                            <img 
-                              src={msg.screenshot} 
-                              alt="iTax Screenshot" 
-                              className="w-full rounded-lg border border-surface-container-high shadow-inner"
-                              referrerPolicy="no-referrer"
-                            />
                           </div>
                         )}
                       </div>

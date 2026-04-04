@@ -84,107 +84,63 @@ async function startServer() {
 
   app.post("/api/kra/automation/nil-return", (req, res) => {
     const steps = [
-      "Launching Playwright (Headless: false)...",
-      "Navigating to https://itax.kra.go.ke/...",
-      "Waiting for login form selector...",
-      "Typing KRA PIN: A00XXXXXXXXZ...",
-      "Clicking 'Continue' button...",
-      "Waiting for password input and CAPTCHA...",
-      "Solving CAPTCHA via OCR/AI...",
-      "Submitting login form...",
-      "Verifying dashboard load...",
-      "Navigating to Returns -> File NIL Return...",
-      "Selecting 'Income Tax - Resident Individual'...",
-      "Confirming return period: 2023...",
-      "Submitting NIL return form...",
-      "Capturing acknowledgment receipt..."
+      { label: "Launching Playwright (Headless: false)...", screenshot: "https://picsum.photos/seed/itax-1/800/600" },
+      { label: "Navigating to https://itax.kra.go.ke/...", screenshot: "https://picsum.photos/seed/itax-2/800/600" },
+      { label: "Waiting for login form selector...", screenshot: "https://picsum.photos/seed/itax-3/800/600" },
+      { label: "Typing KRA PIN: A00XXXXXXXXZ...", screenshot: "https://picsum.photos/seed/itax-4/800/600" },
+      { label: "Clicking 'Continue' button...", screenshot: "https://picsum.photos/seed/itax-5/800/600" },
+      { label: "Waiting for password input and CAPTCHA...", screenshot: "https://picsum.photos/seed/itax-6/800/600" },
+      { label: "Solving CAPTCHA via OCR/AI...", screenshot: "https://picsum.photos/seed/itax-7/800/600" },
+      { label: "Submitting login form...", screenshot: "https://picsum.photos/seed/itax-8/800/600" },
+      { label: "Verifying dashboard load...", screenshot: "https://picsum.photos/seed/itax-9/800/600" },
+      { label: "Navigating to Returns -> File NIL Return...", screenshot: "https://picsum.photos/seed/itax-10/800/600" },
+      { label: "Selecting 'Income Tax - Resident Individual'...", screenshot: "https://picsum.photos/seed/itax-11/800/600" },
+      { label: "Confirming return period: 2023...", screenshot: "https://picsum.photos/seed/itax-12/800/600" },
+      { label: "Submitting NIL return form...", screenshot: "https://picsum.photos/seed/itax-13/800/600" },
+      { label: "Capturing acknowledgment receipt...", screenshot: "https://picsum.photos/seed/itax-14/800/600" }
     ];
 
-    const diagram = `
-      <svg viewBox="0 0 400 200" class="w-full h-auto">
-        <rect x="10" y="10" width="80" height="40" rx="5" fill="#1b6d24" fill-opacity="0.1" stroke="#1b6d24" />
-        <text x="50" y="35" text-anchor="middle" font-size="10" fill="#1b6d24">Login</text>
-        <line x1="90" y1="30" x2="120" y2="30" stroke="#1b6d24" stroke-dasharray="4" />
-        
-        <rect x="120" y="10" width="80" height="40" rx="5" fill="#1b6d24" fill-opacity="0.1" stroke="#1b6d24" />
-        <text x="160" y="35" text-anchor="middle" font-size="10" fill="#1b6d24">Dashboard</text>
-        <line x1="200" y1="30" x2="230" y2="30" stroke="#1b6d24" stroke-dasharray="4" />
-        
-        <rect x="230" y="10" width="80" height="40" rx="5" fill="#1b6d24" fill-opacity="0.1" stroke="#1b6d24" />
-        <text x="270" y="35" text-anchor="middle" font-size="10" fill="#1b6d24">Returns</text>
-        <line x1="310" y1="30" x2="340" y2="30" stroke="#1b6d24" stroke-dasharray="4" />
-        
-        <rect x="340" y="10" width="50" height="40" rx="5" fill="#ba0013" fill-opacity="0.1" stroke="#ba0013" />
-        <text x="365" y="35" text-anchor="middle" font-size="10" fill="#ba0013">File NIL</text>
-        
-        <path d="M 50 50 L 50 150 L 365 150 L 365 50" fill="none" stroke="#1b6d24" stroke-dasharray="4" />
-        <text x="207" y="145" text-anchor="middle" font-size="8" fill="#1b6d24">Automation Loop</text>
-      </svg>
-    `;
-    
     res.json({
       success: true,
       steps: steps.map((s, i) => ({
         id: i.toString(),
-        label: s,
+        label: s.label,
+        screenshot: s.screenshot,
         status: 'completed',
         timestamp: Date.now()
       })),
       receiptNumber: "KRA-NIL-" + Math.random().toString(36).substring(7).toUpperCase(),
-      screenshot: "https://picsum.photos/seed/itax-screenshot/800/600",
-      diagram: diagram
+      manualInstructions: "1. Log in to iTax.\n2. Go to Returns -> File NIL Return.\n3. Select your obligation.\n4. Submit for the period 2023."
     });
   });
 
   app.post("/api/kra/automation/pin-certificate", (req, res) => {
     const steps = [
-      "Launching Playwright (Headless: false)...",
-      "Navigating to https://itax.kra.go.ke/...",
-      "Entering KRA PIN and Password...",
-      "Solving Security Question/CAPTCHA...",
-      "Submitting login form...",
-      "Navigating to 'Registration' tab...",
-      "Selecting 'Reprint PIN Certificate'...",
-      "Verifying details on submission page...",
-      "Clicking 'Submit' button...",
-      "Waiting for download link generation...",
-      "Clicking 'Click here to download PIN Certificate'...",
-      "Capturing PDF stream and saving to device..."
+      { label: "Launching Playwright (Headless: false)...", screenshot: "https://picsum.photos/seed/pin-1/800/600" },
+      { label: "Navigating to https://itax.kra.go.ke/...", screenshot: "https://picsum.photos/seed/pin-2/800/600" },
+      { label: "Entering KRA PIN and Password...", screenshot: "https://picsum.photos/seed/pin-3/800/600" },
+      { label: "Solving Security Question/CAPTCHA...", screenshot: "https://picsum.photos/seed/pin-4/800/600" },
+      { label: "Submitting login form...", screenshot: "https://picsum.photos/seed/pin-5/800/600" },
+      { label: "Navigating to 'Registration' tab...", screenshot: "https://picsum.photos/seed/pin-6/800/600" },
+      { label: "Selecting 'Reprint PIN Certificate'...", screenshot: "https://picsum.photos/seed/pin-7/800/600" },
+      { label: "Verifying details on submission page...", screenshot: "https://picsum.photos/seed/pin-8/800/600" },
+      { label: "Clicking 'Submit' button...", screenshot: "https://picsum.photos/seed/pin-9/800/600" },
+      { label: "Waiting for download link generation...", screenshot: "https://picsum.photos/seed/pin-10/800/600" },
+      { label: "Clicking 'Click here to download PIN Certificate'...", screenshot: "https://picsum.photos/seed/pin-11/800/600" },
+      { label: "Capturing PDF stream and saving to device...", screenshot: "https://picsum.photos/seed/pin-12/800/600" }
     ];
 
-    const diagram = `
-      <svg viewBox="0 0 400 200" class="w-full h-auto">
-        <rect x="10" y="10" width="80" height="40" rx="5" fill="#1b6d24" fill-opacity="0.1" stroke="#1b6d24" />
-        <text x="50" y="35" text-anchor="middle" font-size="10" fill="#1b6d24">Login</text>
-        <line x1="90" y1="30" x2="120" y2="30" stroke="#1b6d24" stroke-dasharray="4" />
-        
-        <rect x="120" y="10" width="80" height="40" rx="5" fill="#1b6d24" fill-opacity="0.1" stroke="#1b6d24" />
-        <text x="160" y="35" text-anchor="middle" font-size="10" fill="#1b6d24">Registration</text>
-        <line x1="200" y1="30" x2="230" y2="30" stroke="#1b6d24" stroke-dasharray="4" />
-        
-        <rect x="230" y="10" width="80" height="40" rx="5" fill="#1b6d24" fill-opacity="0.1" stroke="#1b6d24" />
-        <text x="270" y="35" text-anchor="middle" font-size="10" fill="#1b6d24">Reprint</text>
-        <line x1="310" y1="30" x2="340" y2="30" stroke="#1b6d24" stroke-dasharray="4" />
-        
-        <rect x="340" y="10" width="50" height="40" rx="5" fill="#ba0013" fill-opacity="0.1" stroke="#ba0013" />
-        <text x="365" y="35" text-anchor="middle" font-size="10" fill="#ba0013">Download</text>
-        
-        <path d="M 50 50 L 50 150 L 365 150 L 365 50" fill="none" stroke="#1b6d24" stroke-dasharray="4" />
-        <text x="207" y="145" text-anchor="middle" font-size="8" fill="#1b6d24">PDF Generation Flow</text>
-      </svg>
-    `;
-    
     res.json({
       success: true,
       steps: steps.map((s, i) => ({
         id: i.toString(),
-        label: s,
+        label: s.label,
+        screenshot: s.screenshot,
         status: 'completed',
         timestamp: Date.now()
       })),
       receiptNumber: "PIN-CERT-" + Math.random().toString(36).substring(7).toUpperCase(),
-      screenshot: "https://picsum.photos/seed/pin-cert/800/600",
-      diagram: diagram
+      manualInstructions: "1. Log in to iTax.\n2. Go to Registration -> Reprint PIN Certificate.\n3. Click Submit.\n4. Download the PDF from the link provided."
     });
   });
 

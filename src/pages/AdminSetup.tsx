@@ -9,6 +9,8 @@ const AdminSetup = () => {
     username: '',
     password: '',
     name: '',
+    kraPin: '',
+    itaxPassword: '',
     deviceInfo: navigator.userAgent,
     location: 'Kenya',
     role: 'admin'
@@ -22,13 +24,34 @@ const AdminSetup = () => {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          username: formData.username,
+          password: formData.password,
+          name: formData.name,
+          role: 'admin',
+          deviceInfo: formData.deviceInfo,
+          location: formData.location
+        })
       });
       const data = await response.json();
       if (data.success) {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
-        setStep(3);
+        
+        // Save KRA Credentials
+        await fetch('/api/credentials', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${data.token}`
+          },
+          body: JSON.stringify({
+            pin: formData.kraPin,
+            password: formData.itaxPassword
+          })
+        });
+
+        setStep(4);
         setTimeout(() => navigate('/admin'), 2000);
       }
     } catch (err) {
@@ -43,7 +66,7 @@ const AdminSetup = () => {
       <div className="w-full max-w-lg">
         {/* Progress Bar */}
         <div className="flex items-center gap-4 mb-12">
-          {[1, 2, 3].map((s) => (
+          {[1, 2, 3, 4].map((s) => (
             <div key={s} className="flex-1 h-2 rounded-full bg-surface-container-high overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
@@ -126,6 +149,55 @@ const AdminSetup = () => {
                     Back
                   </button>
                   <button
+                    onClick={() => setStep(3)}
+                    disabled={isLoading}
+                    className="flex-[2] py-4 bg-primary text-white rounded-2xl text-lg font-bold shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                  >
+                    {isLoading ? <Loader2 className="animate-spin" size={20} /> : <>Next Step <ArrowRight size={20} /></>}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {step === 3 && (
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-8">
+                <Shield size={32} />
+              </div>
+              <h1 className="text-3xl font-serif font-bold text-on-surface mb-4">iTax Credentials</h1>
+              <p className="text-on-surface-variant mb-10 leading-relaxed">
+                Finally, enter your KRA PIN and iTax password to enable automation features.
+              </p>
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2 px-1">KRA PIN</label>
+                  <input
+                    type="text"
+                    value={formData.kraPin}
+                    onChange={(e) => setFormData({ ...formData, kraPin: e.target.value.toUpperCase() })}
+                    placeholder="A00XXXXXXXXZ"
+                    className="w-full px-4 py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2 px-1">iTax Password</label>
+                  <input
+                    type="password"
+                    value={formData.itaxPassword}
+                    onChange={(e) => setFormData({ ...formData, itaxPassword: e.target.value })}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none"
+                  />
+                </div>
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setStep(2)}
+                    className="flex-1 py-4 bg-surface border border-surface-container-high text-on-surface rounded-2xl text-lg font-bold hover:bg-surface-container-low transition-all"
+                  >
+                    Back
+                  </button>
+                  <button
                     onClick={handleSetup}
                     disabled={isLoading}
                     className="flex-[2] py-4 bg-primary text-white rounded-2xl text-lg font-bold shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
@@ -137,7 +209,7 @@ const AdminSetup = () => {
             </motion.div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
               <div className="w-20 h-20 bg-success/10 rounded-full flex items-center justify-center text-success mx-auto mb-8">
                 <CheckCircle2 size={48} />

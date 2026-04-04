@@ -2,51 +2,155 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import Database from "better-sqlite3";
+import SQLiteDatabase from "better-sqlite3";
+import pg from "pg";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const JWT_SECRET = process.env.JWT_SECRET || "kra-agent-secret-key-2024";
+const DB_CONFIG_PATH = path.join(process.cwd(), "db_config.json");
 
-// Initialize SQLite Database
-const db = new Database("kra_agent.db");
+interface DbConfig {
+  type: 'sqlite' | 'postgres';
+  sqlitePath?: string;
+  pgConfig?: pg.PoolConfig;
+}
 
-// Create tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    role TEXT DEFAULT 'user',
-    name TEXT,
-    device_info TEXT,
-    location TEXT,
-    status TEXT DEFAULT 'active',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+let dbConfig: DbConfig = { type: 'sqlite', sqlitePath: 'kra_agent.db' };
 
-  CREATE TABLE IF NOT EXISTS credentials (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    pin TEXT NOT NULL,
-    password TEXT NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES users(id)
-  );
-  
-  CREATE TABLE IF NOT EXISTS preferences (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  );
+if (fs.existsSync(DB_CONFIG_PATH)) {
+  try {
+    dbConfig = JSON.parse(fs.readFileSync(DB_CONFIG_PATH, 'utf-8'));
+  } catch (err) {
+    console.error("Failed to read db_config.json, using default sqlite", err);
+  }
+}
 
-  CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  );
-`);
+let db: any;
+let pgPool: pg.Pool | null = null;
+
+async function initDb() {
+  if (dbConfig.type === 'sqlite') {
+    db = new SQLiteDatabase(dbConfig.sqlitePath || 'kra_agent.db');
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        role TEXT DEFAULT 'user',
+        name TEXT,
+        device_info TEXT,
+        location TEXT,
+        status TEXT DEFAULT 'active',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS credentials (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        pin TEXT NOT NULL,
+        password TEXT NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+      );
+      
+      CREATE TABLE IF NOT EXISTS preferences (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `);
+  } else {
+    pgPool = new pg.Pool(dbConfig.pgConfig);
+    const client = await pgPool.connect();
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          username TEXT UNIQUE NOT NULL,
+          password TEXT NOT NULL,
+          role TEXT DEFAULT 'user',
+          name TEXT,
+          device_info TEXT,
+          location TEXT,
+          status TEXT DEFAULT 'active',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS credentials (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id),
+          pin TEXT NOT NULL,
+          password TEXT NOT NULL,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE TABLE IF NOT EXISTS preferences (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+      `);
+    } finally {
+      client.release();
+    }
+  }
+}
+
+// Helper for DB queries
+const query = async (sql: string, params: any[] = []) => {
+  if (dbConfig.type === 'sqlite') {
+    if (sql.toLowerCase().startsWith('select')) {
+      if (sql.toLowerCase().includes('limit 1')) {
+        return db.prepare(sql).get(...params);
+      }
+      return db.prepare(sql).all(...params);
+    } else {
+      const result = db.prepare(sql).run(...params);
+      return { lastInsertRowid: result.lastInsertRowid, changes: result.changes };
+    }
+  } else {
+    // Convert SQLite ? to Postgres $1, $2...
+    let pgSql = sql;
+    let i = 1;
+    while (pgSql.includes('?')) {
+      pgSql = pgSql.replace('?', `$${i++}`);
+    }
+    // Convert INSERT OR REPLACE to INSERT ... ON CONFLICT
+    if (pgSql.toUpperCase().includes('INSERT OR REPLACE')) {
+      const match = pgSql.match(/INSERT OR REPLACE INTO (\w+) \((.*?)\) VALUES \((.*?)\)/i);
+      if (match) {
+        const table = match[1];
+        const columns = match[2];
+        const values = match[3];
+        const colList = columns.split(',').map(c => c.trim());
+        const primaryKey = colList[0]; // Assuming first col is PK for settings/prefs
+        pgSql = `INSERT INTO ${table} (${columns}) VALUES (${values}) ON CONFLICT (${primaryKey}) DO UPDATE SET value = EXCLUDED.value`;
+      }
+    }
+
+    const result = await pgPool!.query(pgSql, params);
+    if (sql.toLowerCase().startsWith('select')) {
+      if (sql.toLowerCase().includes('limit 1')) {
+        return result.rows[0];
+      }
+      return result.rows;
+    }
+    return { lastInsertRowid: result.rows[0]?.id, changes: result.rowCount };
+  }
+};
 
 // Middleware: Auth
 const authenticate = (req: any, res: any, next: any) => {
@@ -67,6 +171,8 @@ const isAdmin = (req: any, res: any, next: any) => {
 };
 
 async function startServer() {
+  await initDb();
+  
   const app = express();
   const PORT = 3000;
 
@@ -77,58 +183,60 @@ async function startServer() {
     const { username, password, name, deviceInfo, location, role } = req.body;
     try {
       const hashedPassword = await bcrypt.hash(password, 10);
-      const result = db.prepare("INSERT INTO users (username, password, name, device_info, location, role) VALUES (?, ?, ?, ?, ?, ?)").run(
+      const result = await query("INSERT INTO users (username, password, name, device_info, location, role) VALUES (?, ?, ?, ?, ?, ?) RETURNING id", [
         username, hashedPassword, name, deviceInfo, location, role || 'user'
-      );
-      const token = jwt.sign({ id: result.lastInsertRowid, username, role: role || 'user' }, JWT_SECRET);
-      res.json({ success: true, token, user: { id: result.lastInsertRowid, username, role: role || 'user' } });
+      ]);
+      const userId = result.lastInsertRowid;
+      const token = jwt.sign({ id: userId, username, role: role || 'user' }, JWT_SECRET);
+      res.json({ success: true, token, user: { id: userId, username, role: role || 'user' } });
     } catch (err: any) {
+      console.error(err);
       res.status(400).json({ error: "Username already exists" });
     }
   });
 
   app.post("/api/auth/login", async (req, res) => {
     const { username, password, deviceInfo, location } = req.body;
-    const user: any = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
+    const user: any = await query("SELECT * FROM users WHERE username = ? LIMIT 1", [username]);
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
     
     // Update device/location on login
-    db.prepare("UPDATE users SET device_info = ?, location = ?, status = 'active' WHERE id = ?").run(deviceInfo, location, user.id);
+    await query("UPDATE users SET device_info = ?, location = ?, status = 'active' WHERE id = ?", [deviceInfo, location, user.id]);
     
     const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET);
     res.json({ success: true, token, user: { id: user.id, username: user.username, role: user.role } });
   });
 
-  app.get("/api/auth/me", authenticate, (req: any, res) => {
-    const user: any = db.prepare("SELECT id, username, role, name, device_info, location FROM users WHERE id = ?").get(req.user.id);
+  app.get("/api/auth/me", authenticate, async (req: any, res) => {
+    const user: any = await query("SELECT id, username, role, name, device_info, location FROM users WHERE id = ? LIMIT 1", [req.user.id]);
     res.json(user);
   });
 
-  app.get("/api/setup/check", (req, res) => {
-    const admin = db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get();
+  app.get("/api/setup/check", async (req, res) => {
+    const admin = await query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
     res.json({ setupRequired: !admin });
   });
 
   // API: Admin
-  app.get("/api/admin/users", authenticate, isAdmin, (req, res) => {
-    const users = db.prepare("SELECT id, username, role, name, device_info, location, status, created_at FROM users").all();
+  app.get("/api/admin/users", authenticate, isAdmin, async (req, res) => {
+    const users = await query("SELECT id, username, role, name, device_info, location, status, created_at FROM users");
     res.json(users);
   });
 
-  app.delete("/api/admin/users/:id", authenticate, isAdmin, (req, res) => {
-    db.prepare("DELETE FROM users WHERE id = ?").run(req.params.id);
+  app.delete("/api/admin/users/:id", authenticate, isAdmin, async (req, res) => {
+    await query("DELETE FROM users WHERE id = ?", [req.params.id]);
     res.json({ success: true });
   });
 
-  app.post("/api/admin/users/:id/logout", authenticate, isAdmin, (req, res) => {
-    db.prepare("UPDATE users SET status = 'logged_out' WHERE id = ?").run(req.params.id);
+  app.post("/api/admin/users/:id/logout", authenticate, isAdmin, async (req, res) => {
+    await query("UPDATE users SET status = 'logged_out' WHERE id = ?", [req.params.id]);
     res.json({ success: true });
   });
 
-  app.get("/api/admin/settings", authenticate, isAdmin, (req, res) => {
-    const rows = db.prepare("SELECT key, value FROM settings").all();
+  app.get("/api/admin/settings", authenticate, isAdmin, async (req, res) => {
+    const rows: any = await query("SELECT key, value FROM settings");
     const settings = rows.reduce((acc: any, row: any) => {
       acc[row.key] = row.value;
       return acc;
@@ -136,32 +244,60 @@ async function startServer() {
     res.json(settings);
   });
 
-  app.post("/api/admin/settings", authenticate, isAdmin, (req, res) => {
+  app.post("/api/admin/settings", authenticate, isAdmin, async (req, res) => {
     const { key, value } = req.body;
-    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(key, value);
+    await query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [key, value]);
     res.json({ success: true });
   });
 
+  app.get("/api/admin/database-config", authenticate, isAdmin, (req, res) => {
+    res.json(dbConfig);
+  });
+
+  app.post("/api/admin/database-config", authenticate, isAdmin, async (req, res) => {
+    const newConfig = req.body;
+    try {
+      // Test connection if postgres
+      if (newConfig.type === 'postgres') {
+        const testPool = new pg.Pool(newConfig.pgConfig);
+        const client = await testPool.connect();
+        client.release();
+        await testPool.end();
+      }
+      
+      fs.writeFileSync(DB_CONFIG_PATH, JSON.stringify(newConfig, null, 2));
+      dbConfig = newConfig;
+      
+      // Re-initialize DB
+      if (pgPool) await pgPool.end();
+      await initDb();
+      
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(400).json({ error: "Failed to connect to database: " + err.message });
+    }
+  });
+
   // API: Credentials (User specific)
-  app.get("/api/credentials", authenticate, (req: any, res) => {
-    const creds = db.prepare("SELECT pin, password FROM credentials WHERE user_id = ? ORDER BY id DESC LIMIT 1").get(req.user.id);
+  app.get("/api/credentials", authenticate, async (req: any, res) => {
+    const creds = await query("SELECT pin, password FROM credentials WHERE user_id = ? ORDER BY id DESC LIMIT 1", [req.user.id]);
     res.json(creds || null);
   });
 
-  app.post("/api/credentials", authenticate, (req: any, res) => {
+  app.post("/api/credentials", authenticate, async (req: any, res) => {
     const { pin, password } = req.body;
-    const existing = db.prepare("SELECT pin FROM credentials WHERE user_id = ? LIMIT 1").get(req.user.id);
+    const existing: any = await query("SELECT pin FROM credentials WHERE user_id = ? LIMIT 1", [req.user.id]);
     if (existing) {
-      db.prepare("UPDATE credentials SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE pin = ? AND user_id = ?").run(password, existing.pin, req.user.id);
+      await query("UPDATE credentials SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE pin = ? AND user_id = ?", [password, existing.pin, req.user.id]);
     } else {
-      db.prepare("INSERT INTO credentials (user_id, pin, password) VALUES (?, ?, ?)").run(req.user.id, pin, password);
+      await query("INSERT INTO credentials (user_id, pin, password) VALUES (?, ?, ?)", [req.user.id, pin, password]);
     }
     res.json({ success: true });
   });
 
   // API: Preferences (User specific)
-  app.get("/api/preferences", authenticate, (req: any, res) => {
-    const rows = db.prepare("SELECT key, value FROM preferences").all(); // For now global, but could be user specific
+  app.get("/api/preferences", authenticate, async (req: any, res) => {
+    const rows: any = await query("SELECT key, value FROM preferences");
     const prefs = rows.reduce((acc: any, row: any) => {
       acc[row.key] = row.value;
       return acc;
@@ -169,15 +305,15 @@ async function startServer() {
     res.json(prefs);
   });
 
-  app.post("/api/preferences", authenticate, (req: any, res) => {
+  app.post("/api/preferences", authenticate, async (req: any, res) => {
     const { key, value } = req.body;
-    db.prepare("INSERT OR REPLACE INTO preferences (key, value) VALUES (?, ?)").run(key, value);
+    await query("INSERT OR REPLACE INTO preferences (key, value) VALUES (?, ?)", [key, value]);
     res.json({ success: true });
   });
 
   // API: User Profile
-  app.get("/api/user/profile", authenticate, (req: any, res) => {
-    const user: any = db.prepare("SELECT name, username as kraId, role as status FROM users WHERE id = ?").get(req.user.id);
+  app.get("/api/user/profile", authenticate, async (req: any, res) => {
+    const user: any = await query("SELECT name, username as kraId, role as status FROM users WHERE id = ? LIMIT 1", [req.user.id]);
     res.json({
       name: user.name || "User",
       kraId: user.kraId,

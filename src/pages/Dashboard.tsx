@@ -29,7 +29,7 @@ import { cn } from '../lib/utils';
 import { Message, Credentials, AutomationStep } from '../types';
 import { useNavigate } from 'react-router-dom';
 
-const Sidebar = ({ isOpen, onClose, onTaskClick }: { isOpen: boolean, onClose: () => void, onTaskClick: (label: string) => void }) => {
+const Sidebar = ({ isOpen, onClose, onTaskClick, navigate }: { isOpen: boolean, onClose: () => void, onTaskClick: (label: string) => void, navigate: (path: string) => void }) => {
   const quickTasks = [
     { id: 'nil', label: 'Nil Returns', icon: FileText, badge: 'Auto' },
     { id: 'compliance', label: 'Compliance Check', icon: ShieldCheck, badge: 'Crawler' },
@@ -102,6 +102,29 @@ const Sidebar = ({ isOpen, onClose, onTaskClick }: { isOpen: boolean, onClose: (
                 ))}
               </nav>
             </div>
+          </div>
+
+          <div className="pt-6 border-t border-surface-container-high space-y-2">
+            <button 
+              onClick={() => {
+                navigate('/settings');
+                onClose();
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-on-surface-variant hover:bg-white/50 transition-all"
+            >
+              <Settings size={18} />
+              <span className="font-medium">Settings</span>
+            </button>
+            <button 
+              onClick={() => {
+                localStorage.clear();
+                navigate('/login');
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-error hover:bg-error/5 transition-all"
+            >
+              <LogOut size={18} />
+              <span className="font-medium">Logout</span>
+            </button>
           </div>
         </div>
       </aside>
@@ -274,6 +297,7 @@ const Dashboard = () => {
         isOpen={isSidebarOpen} 
         onClose={() => setIsSidebarOpen(false)} 
         onTaskClick={(label) => handleSend(`Help me with ${label}`)}
+        navigate={navigate}
       />
 
       <main className="flex-1 flex flex-col min-w-0 relative">
@@ -300,23 +324,6 @@ const Dashboard = () => {
                 <span className="hidden sm:inline">Admin</span>
               </button>
             )}
-            <button 
-              onClick={() => navigate('/settings')}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-all border border-surface-container-high"
-            >
-              <Settings size={14} />
-              <span className="hidden sm:inline">Settings</span>
-            </button>
-            <button 
-              onClick={() => {
-                localStorage.clear();
-                navigate('/login');
-              }}
-              className="p-2 text-error hover:bg-error/5 rounded-lg"
-              title="Logout"
-            >
-              <LogOut size={18} />
-            </button>
           </div>
         </header>
 

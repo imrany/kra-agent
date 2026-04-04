@@ -15,19 +15,31 @@ import {
   Loader2,
   Save,
   Key,
-  Bot
+  Bot,
+  Database
 } from 'lucide-react';
 import { User } from '../types';
 import { useNavigate } from 'react-router-dom';
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'settings'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'settings' | 'database'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [adminSettings, setAdminSettings] = useState<any>({
     api_key: '',
     model: 'gemini-3-flash-preview'
+  });
+  const [dbConfig, setDbConfig] = useState<any>({
+    type: 'sqlite',
+    sqlitePath: 'kra_agent.db',
+    pgConfig: {
+      host: 'localhost',
+      port: 5432,
+      user: 'postgres',
+      password: '',
+      database: 'kra_agent'
+    }
   });
   const [isSaving, setIsSaving] = useState(false);
   const navigate = useNavigate();
@@ -40,23 +52,52 @@ const AdminDashboard = () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const [usersRes, settingsRes] = await Promise.all([
+      const [usersRes, settingsRes, dbRes] = await Promise.all([
         fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/admin/settings', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/admin/settings', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/database-config', { headers: { Authorization: `Bearer ${token}` } })
       ]);
       
-      if (usersRes.ok && settingsRes.ok) {
+      if (usersRes.ok && settingsRes.ok && dbRes.ok) {
         setUsers(await usersRes.json());
         const settings = await settingsRes.json();
         setAdminSettings({
           api_key: settings.api_key || '',
           model: settings.model || 'gemini-3-flash-preview'
         });
+        const dbData = await dbRes.json();
+        setDbConfig(dbData);
       }
     } catch (err) {
       console.error(err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveDbConfig = async () => {
+    setIsSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/admin/database-config', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(dbConfig)
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Database configuration updated successfully!');
+      } else {
+        alert('Error: ' + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save database configuration');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -148,6 +189,15 @@ const AdminDashboard = () => {
           >
             <Settings size={20} />
             <span className="font-bold">System Settings</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('database')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${
+              activeTab === 'database' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-white/50'
+            }`}
+          >
+            <Database size={20} />
+            <span className="font-bold">Database Config</span>
           </button>
         </nav>
 
@@ -252,7 +302,7 @@ const AdminDashboard = () => {
                 </div>
               )}
             </motion.div>
-          ) : (
+          ) : activeTab === 'settings' ? (
             <motion.div
               key="settings"
               initial={{ opacity: 0, y: 10 }}
@@ -309,6 +359,125 @@ const AdminDashboard = () => {
                   className="w-full py-4 bg-primary text-white rounded-2xl text-lg font-bold shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
                   {isSaving ? <Loader2 className="animate-spin" size={20} /> : <>Save Configuration <Save size={20} /></>}
+                </button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="database"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="max-w-2xl"
+            >
+              <div className="mb-10">
+                <h2 className="text-3xl font-serif font-bold text-on-surface mb-2">Database Configuration</h2>
+                <p className="text-on-surface-variant">Switch between SQLite and PostgreSQL</p>
+              </div>
+
+              <div className="space-y-8 bg-white p-10 rounded-[40px] border border-surface-container-high shadow-sm">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4 px-1">
+                    Database Type
+                  </label>
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => setDbConfig({ ...dbConfig, type: 'sqlite' })}
+                      className={`flex-1 py-4 rounded-2xl border font-bold transition-all ${
+                        dbConfig.type === 'sqlite' ? 'bg-primary text-white border-primary' : 'bg-surface border-surface-container-high text-on-surface-variant'
+                      }`}
+                    >
+                      SQLite
+                    </button>
+                    <button
+                      onClick={() => setDbConfig({ ...dbConfig, type: 'postgres' })}
+                      className={`flex-1 py-4 rounded-2xl border font-bold transition-all ${
+                        dbConfig.type === 'postgres' ? 'bg-primary text-white border-primary' : 'bg-surface border-surface-container-high text-on-surface-variant'
+                      }`}
+                    >
+                      PostgreSQL
+                    </button>
+                  </div>
+                </div>
+
+                {dbConfig.type === 'sqlite' ? (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4 px-1">
+                      SQLite File Path
+                    </label>
+                    <input
+                      type="text"
+                      value={dbConfig.sqlitePath}
+                      onChange={(e) => setDbConfig({ ...dbConfig, sqlitePath: e.target.value })}
+                      className="w-full px-4 py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2 px-1">Host</label>
+                        <input
+                          type="text"
+                          value={dbConfig.pgConfig.host}
+                          onChange={(e) => setDbConfig({ ...dbConfig, pgConfig: { ...dbConfig.pgConfig, host: e.target.value } })}
+                          className="w-full px-4 py-3 bg-surface rounded-xl border border-surface-container-high focus:border-primary transition-all outline-none text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2 px-1">Port</label>
+                        <input
+                          type="number"
+                          value={dbConfig.pgConfig.port}
+                          onChange={(e) => setDbConfig({ ...dbConfig, pgConfig: { ...dbConfig.pgConfig, port: parseInt(e.target.value) } })}
+                          className="w-full px-4 py-3 bg-surface rounded-xl border border-surface-container-high focus:border-primary transition-all outline-none text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2 px-1">User</label>
+                        <input
+                          type="text"
+                          value={dbConfig.pgConfig.user}
+                          onChange={(e) => setDbConfig({ ...dbConfig, pgConfig: { ...dbConfig.pgConfig, user: e.target.value } })}
+                          className="w-full px-4 py-3 bg-surface rounded-xl border border-surface-container-high focus:border-primary transition-all outline-none text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2 px-1">Password</label>
+                        <input
+                          type="password"
+                          value={dbConfig.pgConfig.password}
+                          onChange={(e) => setDbConfig({ ...dbConfig, pgConfig: { ...dbConfig.pgConfig, password: e.target.value } })}
+                          className="w-full px-4 py-3 bg-surface rounded-xl border border-surface-container-high focus:border-primary transition-all outline-none text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2 px-1">Database Name</label>
+                      <input
+                        type="text"
+                        value={dbConfig.pgConfig.database}
+                        onChange={(e) => setDbConfig({ ...dbConfig, pgConfig: { ...dbConfig.pgConfig, database: e.target.value } })}
+                        className="w-full px-4 py-3 bg-surface rounded-xl border border-surface-container-high focus:border-primary transition-all outline-none text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                  <p className="text-[10px] text-primary font-bold uppercase leading-relaxed">
+                    Note: Switching databases will re-initialize the connection. Make sure the target database is accessible.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleSaveDbConfig}
+                  disabled={isSaving}
+                  className="w-full py-4 bg-primary text-white rounded-2xl text-lg font-bold shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                >
+                  {isSaving ? <Loader2 className="animate-spin" size={20} /> : <>Update Database <Save size={20} /></>}
                 </button>
               </div>
             </motion.div>

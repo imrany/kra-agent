@@ -84,9 +84,18 @@ const Login = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2 px-1">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-2 px-1">
+                <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                  Password
+                </label>
+                <button 
+                  type="button"
+                  onClick={() => alert("For security, password resets must be performed by a system administrator. If you are the admin and forgot your password, please check the server logs for the registered admin username or reset the database.")}
+                  className="text-[10px] font-bold text-primary hover:underline uppercase tracking-wider"
+                >
+                  Forgot?
+                </button>
+              </div>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" size={18} />
                 <input

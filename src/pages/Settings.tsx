@@ -112,38 +112,38 @@ const Settings = () => {
         </div>
       </header>
 
-      <main className="pt-32 pb-20 px-6">
+      <main className="pt-24 lg:pt-32 pb-20 px-4 lg:px-6">
         <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
             
             {/* Left Column: Profile & Info */}
             <div className="lg:col-span-4 space-y-6">
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white p-8 rounded-[32px] border border-surface-container-high shadow-xl shadow-black/5 text-center relative overflow-hidden"
+                className="bg-white p-6 md:p-8 rounded-[32px] border border-surface-container-high shadow-xl shadow-black/5 text-center relative overflow-hidden"
               >
                 <div className="absolute top-0 left-0 w-full h-24 bg-primary/5" />
                 <div className="relative pt-4">
-                  <div className="w-24 h-24 bg-white rounded-3xl border-4 border-surface shadow-lg flex items-center justify-center text-primary font-bold text-3xl mx-auto mb-6">
+                  <div className="w-20 h-20 md:w-24 md:h-24 bg-white rounded-3xl border-4 border-surface shadow-lg flex items-center justify-center text-primary font-bold text-2xl md:text-3xl mx-auto mb-6">
                     {user?.name?.[0] || user?.username[0].toUpperCase()}
                   </div>
-                  <h2 className="text-2xl font-serif font-bold text-on-surface mb-1">{user?.name || 'User'}</h2>
-                  <p className="text-sm text-on-surface-variant mb-8 font-mono">{user?.username}</p>
+                  <h2 className="text-xl md:text-2xl font-serif font-bold text-on-surface mb-1">{user?.name || 'User'}</h2>
+                  <p className="text-xs md:text-sm text-on-surface-variant mb-6 md:mb-8 font-mono">{user?.username}</p>
                   
                   <div className="space-y-3 text-left">
-                    <div className="flex items-center gap-3 p-4 bg-surface rounded-2xl border border-surface-container-high group transition-all hover:border-primary/20">
+                    <div className="flex items-center gap-3 p-3 md:p-4 bg-surface rounded-2xl border border-surface-container-high group transition-all hover:border-primary/20">
                       <Smartphone size={16} className="text-on-surface-variant group-hover:text-primary transition-colors" />
                       <div className="min-w-0">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Device</p>
-                        <p className="text-xs text-on-surface truncate font-medium">{user?.device_info || 'Unknown'}</p>
+                        <p className="text-[10px] md:text-xs text-on-surface truncate font-medium">{user?.device_info || 'Unknown'}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 p-4 bg-surface rounded-2xl border border-surface-container-high group transition-all hover:border-primary/20">
+                    <div className="flex items-center gap-3 p-3 md:p-4 bg-surface rounded-2xl border border-surface-container-high group transition-all hover:border-primary/20">
                       <MapPin size={16} className="text-on-surface-variant group-hover:text-primary transition-colors" />
                       <div className="min-w-0">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Location</p>
-                        <p className="text-xs text-on-surface font-medium">{user?.location || 'Kenya'}</p>
+                        <p className="text-[10px] md:text-xs text-on-surface font-medium">{user?.location || 'Kenya'}</p>
                       </div>
                     </div>
                   </div>
@@ -153,7 +153,7 @@ const Settings = () => {
                       localStorage.clear();
                       navigate('/login');
                     }}
-                    className="w-full mt-8 py-4 bg-error/5 text-error rounded-2xl text-sm font-bold hover:bg-error/10 active:scale-95 transition-all flex items-center justify-center gap-2"
+                    className="w-full mt-6 md:mt-8 py-3 md:py-4 bg-error/5 text-error rounded-2xl text-sm font-bold hover:bg-error/10 active:scale-95 transition-all flex items-center justify-center gap-2"
                   >
                     Logout Account
                   </button>
@@ -177,20 +177,20 @@ const Settings = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="bg-white p-10 rounded-[40px] border border-surface-container-high shadow-xl shadow-black/5"
+                className="bg-white p-6 md:p-10 rounded-[32px] md:rounded-[40px] border border-surface-container-high shadow-xl shadow-black/5"
               >
-                <div className="flex items-center justify-between mb-10">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
                       <Fingerprint size={24} />
                     </div>
                     <div>
-                      <h3 className="text-xl font-serif font-bold text-on-surface">iTax Credentials</h3>
+                      <h3 className="text-lg md:text-xl font-serif font-bold text-on-surface">iTax Credentials</h3>
                       <p className="text-xs text-on-surface-variant">Used for automated portal tasks</p>
                     </div>
                   </div>
                   {isPinSet && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-success/10 text-success rounded-full">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-success/10 text-success rounded-full w-fit">
                       <CheckCircle2 size={14} />
                       <span className="text-[10px] font-bold uppercase tracking-widest">Verified</span>
                     </div>
@@ -198,7 +198,7 @@ const Settings = () => {
                 </div>
 
                 <div className="space-y-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3 px-1">
                         KRA PIN
@@ -212,7 +212,7 @@ const Settings = () => {
                           onChange={(e) => setCreds({ ...creds, pin: e.target.value.toUpperCase() })}
                           placeholder="A00XXXXXXXXZ"
                           className={cn(
-                            "w-full pl-12 pr-4 py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none font-mono font-bold",
+                            "w-full pl-12 pr-4 py-3 md:py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none font-mono font-bold text-sm md:text-base",
                             isPinSet ? "opacity-60 cursor-not-allowed bg-surface-container-low" : "hover:border-primary/30"
                           )}
                         />
@@ -235,7 +235,7 @@ const Settings = () => {
                           value={creds.password}
                           onChange={(e) => setCreds({ ...creds, password: e.target.value })}
                           placeholder="••••••••"
-                          className="w-full pl-12 pr-12 py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none hover:border-primary/30"
+                          className="w-full pl-12 pr-12 py-3 md:py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none hover:border-primary/30 text-sm md:text-base"
                         />
                         <button
                           onClick={() => setShowPassword(!showPassword)}
@@ -252,7 +252,7 @@ const Settings = () => {
                       onClick={handleSaveCreds}
                       disabled={isSaving}
                       className={cn(
-                        "w-full py-5 rounded-2xl text-lg font-bold shadow-xl transition-all flex items-center justify-center gap-3",
+                        "w-full py-4 md:py-5 rounded-2xl text-base md:text-lg font-bold shadow-xl transition-all flex items-center justify-center gap-3",
                         saveSuccess 
                           ? "bg-success text-white shadow-success/30" 
                           : "bg-primary text-white shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
@@ -280,14 +280,14 @@ const Settings = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="bg-surface-container-low p-8 rounded-[32px] border border-surface-container-high flex flex-col md:flex-row items-center gap-6"
+                className="bg-surface-container-low p-6 md:p-8 rounded-[32px] border border-surface-container-high flex flex-col md:flex-row items-center gap-6"
               >
-                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-primary shadow-sm border border-surface-container-high">
+                <div className="w-14 h-14 md:w-16 md:h-16 bg-white rounded-2xl flex items-center justify-center text-primary shadow-sm border border-surface-container-high shrink-0">
                   <Database size={28} />
                 </div>
                 <div className="flex-1 text-center md:text-left">
                   <h4 className="text-lg font-serif font-bold text-on-surface mb-1">Local Database Storage</h4>
-                  <p className="text-sm text-on-surface-variant">
+                  <p className="text-xs md:text-sm text-on-surface-variant">
                     All your data is stored in a secure SQLite database on this server instance. No cloud syncing is enabled for your private keys.
                   </p>
                 </div>

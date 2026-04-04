@@ -77,14 +77,14 @@ const AdminSetup = () => {
           ))}
         </div>
 
-        <div className="bg-white p-10 rounded-[40px] border border-surface-container-high shadow-2xl shadow-black/5">
+        <div className="bg-white p-6 md:p-10 rounded-[32px] md:rounded-[40px] border border-surface-container-high shadow-2xl shadow-black/5">
           {step === 1 && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-8">
-                <Shield size={32} />
+              <div className="w-12 h-12 md:w-16 md:h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 md:mb-8">
+                <Shield size={28} />
               </div>
-              <h1 className="text-3xl font-serif font-bold text-on-surface mb-4">Initial Admin Setup</h1>
-              <p className="text-on-surface-variant mb-10 leading-relaxed">
+              <h1 className="text-2xl md:text-3xl font-serif font-bold text-on-surface mb-3 md:mb-4">Initial Admin Setup</h1>
+              <p className="text-sm md:text-base text-on-surface-variant mb-8 md:mb-10 leading-relaxed">
                 Welcome to KRA AI Agent. As the first user, you need to create an administrator account to manage the system.
               </p>
               <div className="space-y-6">
@@ -97,13 +97,13 @@ const AdminSetup = () => {
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       placeholder="e.g. System Admin"
-                      className="w-full pl-12 pr-4 py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none"
+                      className="w-full pl-12 pr-4 py-3 md:py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none text-sm md:text-base"
                     />
                   </div>
                 </div>
                 <button
                   onClick={() => setStep(2)}
-                  className="w-full py-4 bg-primary text-white rounded-2xl text-lg font-bold shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3 md:py-4 bg-primary text-white rounded-2xl text-base md:text-lg font-bold shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                 >
                   Next Step <ArrowRight size={20} />
                 </button>
@@ -113,11 +113,11 @@ const AdminSetup = () => {
 
           {step === 2 && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-8">
-                <Lock size={32} />
+              <div className="w-12 h-12 md:w-16 md:h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 md:mb-8">
+                <Lock size={28} />
               </div>
-              <h1 className="text-3xl font-serif font-bold text-on-surface mb-4">Secure Your Account</h1>
-              <p className="text-on-surface-variant mb-10 leading-relaxed">
+              <h1 className="text-2xl md:text-3xl font-serif font-bold text-on-surface mb-3 md:mb-4">Secure Your Account</h1>
+              <p className="text-sm md:text-base text-on-surface-variant mb-8 md:mb-10 leading-relaxed">
                 Choose a strong username and password for the admin dashboard.
               </p>
               <div className="space-y-6">
@@ -128,7 +128,7 @@ const AdminSetup = () => {
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     placeholder="admin"
-                    className="w-full px-4 py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none"
+                    className="w-full px-4 py-3 md:py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none text-sm md:text-base"
                   />
                 </div>
                 <div>
@@ -138,20 +138,20 @@ const AdminSetup = () => {
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     placeholder="••••••••"
-                    className="w-full px-4 py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none"
+                    className="w-full px-4 py-3 md:py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none text-sm md:text-base"
                   />
                 </div>
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-4">
                   <button
                     onClick={() => setStep(1)}
-                    className="flex-1 py-4 bg-surface border border-surface-container-high text-on-surface rounded-2xl text-lg font-bold hover:bg-surface-container-low transition-all"
+                    className="w-full sm:flex-1 py-3 md:py-4 bg-surface border border-surface-container-high text-on-surface rounded-2xl text-base md:text-lg font-bold hover:bg-surface-container-low transition-all"
                   >
                     Back
                   </button>
                   <button
                     onClick={() => setStep(3)}
                     disabled={isLoading}
-                    className="flex-[2] py-4 bg-primary text-white rounded-2xl text-lg font-bold shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                    className="w-full sm:flex-[2] py-3 md:py-4 bg-primary text-white rounded-2xl text-base md:text-lg font-bold shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                   >
                     {isLoading ? <Loader2 className="animate-spin" size={20} /> : <>Next Step <ArrowRight size={20} /></>}
                   </button>
@@ -162,11 +162,11 @@ const AdminSetup = () => {
 
           {step === 3 && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-8">
-                <Shield size={32} />
+              <div className="w-12 h-12 md:w-16 md:h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 md:mb-8">
+                <Shield size={28} />
               </div>
-              <h1 className="text-3xl font-serif font-bold text-on-surface mb-4">iTax Credentials</h1>
-              <p className="text-on-surface-variant mb-10 leading-relaxed">
+              <h1 className="text-2xl md:text-3xl font-serif font-bold text-on-surface mb-3 md:mb-4">iTax Credentials</h1>
+              <p className="text-sm md:text-base text-on-surface-variant mb-8 md:mb-10 leading-relaxed">
                 Finally, enter your KRA PIN and iTax password to enable automation features.
               </p>
               <div className="space-y-6">
@@ -177,7 +177,7 @@ const AdminSetup = () => {
                     value={formData.kraPin}
                     onChange={(e) => setFormData({ ...formData, kraPin: e.target.value.toUpperCase() })}
                     placeholder="A00XXXXXXXXZ"
-                    className="w-full px-4 py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none font-mono"
+                    className="w-full px-4 py-3 md:py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none font-mono text-sm md:text-base"
                   />
                 </div>
                 <div>
@@ -187,20 +187,20 @@ const AdminSetup = () => {
                     value={formData.itaxPassword}
                     onChange={(e) => setFormData({ ...formData, itaxPassword: e.target.value })}
                     placeholder="••••••••"
-                    className="w-full px-4 py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none"
+                    className="w-full px-4 py-3 md:py-4 bg-surface rounded-2xl border border-surface-container-high focus:border-primary transition-all outline-none text-sm md:text-base"
                   />
                 </div>
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-4">
                   <button
                     onClick={() => setStep(2)}
-                    className="flex-1 py-4 bg-surface border border-surface-container-high text-on-surface rounded-2xl text-lg font-bold hover:bg-surface-container-low transition-all"
+                    className="w-full sm:flex-1 py-3 md:py-4 bg-surface border border-surface-container-high text-on-surface rounded-2xl text-base md:text-lg font-bold hover:bg-surface-container-low transition-all"
                   >
                     Back
                   </button>
                   <button
                     onClick={handleSetup}
                     disabled={isLoading}
-                    className="flex-[2] py-4 bg-primary text-white rounded-2xl text-lg font-bold shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                    className="w-full sm:flex-[2] py-3 md:py-4 bg-primary text-white rounded-2xl text-base md:text-lg font-bold shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                   >
                     {isLoading ? <Loader2 className="animate-spin" size={20} /> : <>Complete Setup <ArrowRight size={20} /></>}
                   </button>

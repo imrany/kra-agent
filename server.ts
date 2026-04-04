@@ -113,6 +113,14 @@ async function initDb() {
           value TEXT NOT NULL
         );
       `);
+
+      const admins: any = await query("SELECT username FROM users WHERE role = 'admin'");
+      if (admins && (Array.isArray(admins) ? admins.length > 0 : admins.username)) {
+        const adminList = Array.isArray(admins) ? admins.map((a: any) => a.username).join(", ") : admins.username;
+        console.log("Registered Admins:", adminList);
+      } else {
+        console.log("No admins registered yet. Setup required.");
+      }
     } finally {
       client.release();
     }
@@ -222,9 +230,11 @@ async function startServer() {
     const { username, password, deviceInfo, location } = req.body;
     const user: any = await query("SELECT * FROM users WHERE username = ? LIMIT 1", [username]);
     if (!user || !(await bcrypt.compare(password, user.password))) {
+      console.log(`Login failed for user: ${username}. User exists: ${!!user}`);
       return res.status(401).json({ error: "Invalid credentials" });
     }
     
+    console.log(`User logged in: ${username} (${user.role})`);
     // Update device/location on login
     await query("UPDATE users SET device_info = ?, location = ?, status = 'active' WHERE id = ?", [deviceInfo, location, user.id]);
     

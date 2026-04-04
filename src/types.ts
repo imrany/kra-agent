@@ -15,6 +15,7 @@ export interface Message {
   text: string;
   timestamp: number;
   type?: 'text' | 'automation' | 'info';
+  messageType?: 'prompt' | 'response';
   automationSteps?: AutomationStep[];
   screenshot?: string;
   extractedData?: any;

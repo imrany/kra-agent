@@ -194,7 +194,11 @@ const Dashboard = () => {
         setCreds(credsData);
         setPreferences(prefsData);
         setUser(userData);
-        setMessages(messagesData);
+        setMessages(messagesData.map((m: any) => ({
+          ...m,
+          messageType: m.type === 'user' ? 'prompt' : 'response',
+          role: m.type === 'user' ? 'user' : 'model'
+        })));
       } catch (error) {
         console.error("Failed to fetch data:", error);
       }
@@ -276,7 +280,7 @@ const Dashboard = () => {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          type: msg.role === 'user' ? 'user' : (msg.type === 'automation' ? 'automation' : 'bot'),
+          type: msg.messageType === 'prompt' ? 'user' : (msg.type === 'automation' ? 'automation' : 'bot'),
           text: msg.text,
           automationSteps: msg.automationSteps,
           extractedData: msg.extractedData,
@@ -296,7 +300,8 @@ const Dashboard = () => {
       id: Date.now().toString(),
       role: 'user',
       text: messageText,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      messageType: 'prompt'
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -328,7 +333,8 @@ const Dashboard = () => {
           id: (Date.now() + 1).toString(),
           role: 'model',
           text: response.text || "I'm here to help with your KRA tasks.",
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          messageType: 'response'
         };
         setMessages(prev => [...prev, botMsg]);
         saveMessage(botMsg);
@@ -337,7 +343,8 @@ const Dashboard = () => {
           id: Date.now().toString(),
           role: 'model',
           text: "I'm having trouble connecting to my AI core. Please check the system settings.",
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          messageType: 'response'
         };
         setMessages(prev => [...prev, errorMsg]);
         saveMessage(errorMsg);
@@ -353,7 +360,8 @@ const Dashboard = () => {
         id: Date.now().toString(),
         role: 'model',
         text: "I need your iTax credentials to perform this task. Please configure them in **Settings**.",
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        messageType: 'response'
       }]);
       setIsTyping(false);
       return;
@@ -373,6 +381,7 @@ const Dashboard = () => {
           text: `Starting automated ${type.replace('-', ' ')}...`,
           timestamp: Date.now(),
           type: 'automation',
+          messageType: 'response',
           automationSteps: []
         };
         setMessages(prev => [...prev, automationMsg]);
@@ -489,82 +498,89 @@ const Dashboard = () => {
                   key={msg.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={cn(
-                    "flex gap-4",
-                    msg.role === 'user' ? "flex-row-reverse" : ""
-                  )}
+                  className="flex flex-col w-full gap-3"
                 >
-                  <div className={cn("flex-1 space-y-1", msg.role === 'user' ? "text-right" : "")}>
+                  <div className={cn(
+                    "flex w-full",
+                    msg.messageType === 'prompt' ? "justify-end" : "justify-start"
+                  )}>
                     <div className={cn(
-                      "inline-block p-4 rounded-2xl text-sm leading-relaxed w-full",
-                      msg.role === 'model' 
-                        ? "bg-inherit text-on-surface text-left" 
-                        : "bg-surface-container-high text-on-surface text-left"
+                      "max-w-[85%] sm:max-w-[75%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm",
+                      msg.messageType === 'response' 
+                        ? "bg-inherit border border-surface-container-high text-on-surface rounded-tl-none" 
+                        : "bg-primary text-white rounded-tr-none"
                     )}>
-                      <div className="prose prose-sm max-w-none">
+                      <div className={cn(
+                        "prose prose-sm max-w-none",
+                        msg.messageType === 'prompt' ? "prose-invert" : ""
+                      )}>
                         <Markdown>{msg.text}</Markdown>
                       </div>
                     </div>
+                  </div>
 
-                    {msg.type === 'automation' && msg.automationSteps && (
-                      <div className="bg-white border border-surface-container-high rounded-2xl overflow-hidden shadow-sm w-full">
-                        <div className="p-4 border-b border-surface-container-high bg-surface-container-low flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Search size={14} className="text-primary" />
-                            <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Automation Log</span>
+                  {msg.messageType === 'response' && (
+                    <div className="space-y-4 w-full">
+                      {msg.type === 'automation' && msg.automationSteps && (
+                        <div className="bg-white border border-surface-container-high rounded-2xl overflow-hidden shadow-sm w-full">
+                          <div className="p-4 border-b border-surface-container-high bg-surface-container-low flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Search size={14} className="text-primary" />
+                              <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Automation Log</span>
+                            </div>
+                          </div>
+                          <div className="divide-y divide-surface-container-high">
+                            {msg.automationSteps.map((step) => (
+                              <details key={step.id} className="group">
+                                <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-surface-container-low transition-colors list-none">
+                                  <div className="flex items-center gap-3 text-xs">
+                                    <CheckCircle2 size={14} className="text-primary" />
+                                    <span className="font-medium text-on-surface">
+                                      {step.label}
+                                    </span>
+                                  </div>
+                                  {step.screenshot && (
+                                    <ChevronRight size={14} className="text-on-surface-variant transition-transform group-open:rotate-90" />
+                                  )}
+                                </summary>
+                                {step.screenshot && (
+                                  <div className="p-4 bg-surface-container-low border-t border-surface-container-high">
+                                    <img 
+                                      src={step.screenshot} 
+                                      alt={step.label} 
+                                      className="w-full rounded-lg border border-surface-container-high shadow-sm"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  </div>
+                                )}
+                              </details>
+                            ))}
                           </div>
                         </div>
-                        <div className="divide-y divide-surface-container-high">
-                          {msg.automationSteps.map((step) => (
-                            <details key={step.id} className="group">
-                              <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-surface-container-low transition-colors list-none">
-                                <div className="flex items-center gap-3 text-xs">
-                                  <CheckCircle2 size={14} className="text-primary" />
-                                  <span className="font-medium text-on-surface">
-                                    {step.label}
-                                  </span>
-                                </div>
-                                {step.screenshot && (
-                                  <ChevronRight size={14} className="text-on-surface-variant transition-transform group-open:rotate-90" />
-                                )}
-                              </summary>
-                              {step.screenshot && (
-                                <div className="p-4 bg-surface-container-low border-t border-surface-container-high">
-                                  <img 
-                                    src={step.screenshot} 
-                                    alt={step.label} 
-                                    className="w-full rounded-lg border border-surface-container-high shadow-sm"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                </div>
-                              )}
-                            </details>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                      )}
 
-                    {msg.extractedData && (
-                      <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
-                        <div className="flex items-center gap-2 mb-3">
-                          <ShieldCheck size={14} className="text-primary" />
-                          <span className="text-xs font-bold text-primary uppercase tracking-wider">Extracted Data</span>
+                      {msg.extractedData && (
+                        <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                          <div className="flex items-center gap-2 mb-3">
+                            <ShieldCheck size={14} className="text-primary" />
+                            <span className="text-xs font-bold text-primary uppercase tracking-wider">Extracted Data</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            {Object.entries(msg.extractedData).map(([key, value]) => (
+                              <div key={key} className="p-2 bg-white rounded-lg border border-surface-container-high">
+                                <p className="text-[10px] text-on-surface-variant uppercase font-bold mb-1">
+                                  {key.replace(/([A-Z])/g, ' $1').trim()}
+                                </p>
+                                <p className="text-xs font-mono font-bold text-on-surface">
+                                  {String(value)}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          {Object.entries(msg.extractedData).map(([key, value]) => (
-                            <div key={key} className="p-2 bg-white rounded-lg border border-surface-container-high">
-                              <p className="text-[10px] text-on-surface-variant uppercase font-bold mb-1">
-                                {key.replace(/([A-Z])/g, ' $1').trim()}
-                              </p>
-                              <p className="text-xs font-mono font-bold text-on-surface">
-                                {String(value)}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </motion.div>
               ))}
             </AnimatePresence>

@@ -12,9 +12,14 @@ import {
   Send,
   Menu,
   X,
+  CheckCircle2,
+  Circle,
+  Loader2,
   Trash2,
   CreditCard,
-  RefreshCw
+  RefreshCw,
+  Search,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -25,9 +30,9 @@ import { useNavigate } from 'react-router-dom';
 
 const Sidebar = ({ isOpen, onClose, onTaskClick, navigate, onClearChat }: { isOpen: boolean, onClose: () => void, onTaskClick: (label: string) => void, navigate: (path: string) => void, onClearChat: () => void }) => {
   const quickTasks = [
-    { id: 'nil', label: 'Nil Returns', icon: FileText, badge: 'Auto' },
-    { id: 'compliance', label: 'Compliance Check', icon: ShieldCheck, badge: 'Crawler' },
-    { id: 'pin', label: 'PIN Certificate', icon: Download, badge: 'Auto' },
+    { id: 'nil', label: 'Nil Returns', icon: FileText, badge: 'Stealth' },
+    { id: 'compliance', label: 'Compliance Check', icon: ShieldCheck, badge: 'Vision' },
+    { id: 'pin', label: 'PIN Certificate', icon: Download, badge: 'Stealth' },
     { id: 'mpesa', label: 'M-Pesa Payment Slip', icon: CreditCard },
     { id: 'refund', label: 'Refund Status', icon: RefreshCw },
   ];
@@ -130,6 +135,8 @@ const Dashboard = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [activeTask, setActiveTask] = useState<{ id: string, status: string, prompt?: string } | null>(null);
+  const [answer, setAnswer] = useState('');
   const [user, setUser] = useState<any>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -183,6 +190,66 @@ const Dashboard = () => {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
+
+  useEffect(() => {
+    let interval: any;
+    if (activeTask && (activeTask.status === 'running' || activeTask.status === 'paused')) {
+      interval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/kra/tasks/${activeTask.id}`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          });
+          const data = await res.json();
+          
+          setMessages(prev => prev.map(m => {
+            if (m.type === 'automation' && m.id === activeTask.id) {
+              return {
+                ...m,
+                automationSteps: data.steps,
+                text: data.status === 'completed' ? "✅ **Task Completed Successfully!**" : (data.status === 'failed' ? "❌ **Task Failed.**" : m.text)
+              };
+            }
+            return m;
+          }));
+
+          if (data.status === 'paused') {
+            setActiveTask(prev => ({ ...prev!, status: 'paused', prompt: "Security Question Detected." }));
+          } else if (data.status === 'completed' || data.status === 'failed') {
+            setActiveTask(null);
+            clearInterval(interval);
+            setIsTyping(false);
+            
+            // Save final state to DB
+            const finalMsg = messages.find(m => m.id === activeTask.id);
+            if (finalMsg) saveMessage(finalMsg);
+          } else {
+            setActiveTask(prev => ({ ...prev!, status: data.status }));
+          }
+        } catch (err) {
+          console.error("Polling error:", err);
+        }
+      }, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [activeTask, messages]);
+
+  const handleAnswerSubmit = async () => {
+    if (!activeTask || !answer) return;
+    try {
+      await fetch(`/api/kra/tasks/${activeTask.id}/answer`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}` 
+        },
+        body: JSON.stringify({ answer })
+      });
+      setAnswer('');
+      setActiveTask(prev => ({ ...prev!, status: 'running', prompt: undefined }));
+    } catch (err) {
+      console.error("Answer submission error:", err);
+    }
+  };
 
   const saveMessage = async (msg: Partial<Message>) => {
     const token = localStorage.getItem('token');
@@ -277,52 +344,29 @@ const Dashboard = () => {
       return;
     }
 
-    const automationMsg: Message = {
-      id: Date.now().toString(),
-      role: 'model',
-      text: `Starting automated ${type.replace('-', ' ')}...`,
-      timestamp: Date.now(),
-      type: 'automation',
-      automationSteps: [
-        { id: '1', label: 'Initializing browser...', status: 'running', timestamp: Date.now() }
-      ]
-    };
-
-    setMessages(prev => [...prev, automationMsg]);
-
     const token = localStorage.getItem('token');
-    const res = await fetch(`/api/kra/automation/${type}`, { 
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const data = await res.json();
-
-    for (let i = 0; i < data.steps.length; i++) {
-      await new Promise(r => setTimeout(r, 800));
-      setMessages(prev => prev.map(m => m.id === automationMsg.id ? {
-        ...m,
-        automationSteps: data.steps.slice(0, i + 1).map((s: any, idx: number) => ({
-          ...s,
-          status: idx === i ? 'running' : 'completed'
-        }))
-      } : m));
+    try {
+      const res = await fetch(`/api/kra/automation/${type}`, { 
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success && data.taskId) {
+        const automationMsg: Message = {
+          id: data.taskId,
+          role: 'model',
+          text: `Starting automated ${type.replace('-', ' ')}...`,
+          timestamp: Date.now(),
+          type: 'automation',
+          automationSteps: []
+        };
+        setMessages(prev => [...prev, automationMsg]);
+        setActiveTask({ id: data.taskId, status: 'running' });
+      }
+    } catch (err) {
+      console.error("Automation error:", err);
+      setIsTyping(false);
     }
-
-    await new Promise(r => setTimeout(r, 1000));
-    const stepsText = data.steps.map((s: any, i: number) => `${i + 1}. ${s.label}`).join('\n');
-    const finalMsg: Message = {
-      ...automationMsg,
-      text: data.success 
-        ? `✅ **Task Completed!** Your ${type.replace('-', ' ')} has been processed successfully.\n\n**Steps Taken:**\n${stepsText}\n\n**Receipt Number:** \`${data.receiptNumber}\``
-        : `❌ **Automation Failed.** I encountered an issue while performing the task.\n\n**Steps Attempted:**\n${stepsText}\n\n**Manual Instructions:**\n${data.manualInstructions}`,
-      automationSteps: data.steps,
-      screenshot: data.screenshot,
-      extractedData: data.extractedData,
-      receiptNumber: data.receiptNumber
-    };
-    setMessages(prev => prev.map(m => m.id === automationMsg.id ? finalMsg : m));
-    saveMessage(finalMsg);
-    setIsTyping(false);
   };
 
   const handleClearChat = async () => {
@@ -450,6 +494,44 @@ const Dashboard = () => {
                       </div>
                     </div>
 
+                    {msg.type === 'automation' && msg.automationSteps && (
+                      <div className="bg-white border border-surface-container-high rounded-2xl overflow-hidden shadow-sm w-full">
+                        <div className="p-4 border-b border-surface-container-high bg-surface-container-low flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Search size={14} className="text-primary" />
+                            <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Automation Log</span>
+                          </div>
+                        </div>
+                        <div className="divide-y divide-surface-container-high">
+                          {msg.automationSteps.map((step) => (
+                            <details key={step.id} className="group">
+                              <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-surface-container-low transition-colors list-none">
+                                <div className="flex items-center gap-3 text-xs">
+                                  <CheckCircle2 size={14} className="text-primary" />
+                                  <span className="font-medium text-on-surface">
+                                    {step.label}
+                                  </span>
+                                </div>
+                                {step.screenshot && (
+                                  <ChevronRight size={14} className="text-on-surface-variant transition-transform group-open:rotate-90" />
+                                )}
+                              </summary>
+                              {step.screenshot && (
+                                <div className="p-4 bg-surface-container-low border-t border-surface-container-high">
+                                  <img 
+                                    src={step.screenshot} 
+                                    alt={step.label} 
+                                    className="w-full rounded-lg border border-surface-container-high shadow-sm"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                </div>
+                              )}
+                            </details>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {msg.extractedData && (
                       <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
                         <div className="flex items-center gap-2 mb-3">
@@ -475,15 +557,48 @@ const Dashboard = () => {
               ))}
             </AnimatePresence>
 
+            {activeTask?.status === 'paused' && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="max-w-4xl mx-auto p-6 bg-amber-50 border border-amber-200 rounded-2xl space-y-4"
+              >
+                <div className="flex items-center gap-3 text-amber-800">
+                  <Shield size={20} />
+                  <h3 className="font-bold">Security Question Required</h3>
+                </div>
+                <p className="text-sm text-amber-700">
+                  The iTax portal is asking for a security answer. Please provide it below to continue.
+                </p>
+                <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    value={answer}
+                    onChange={(e) => setAnswer(e.target.value)}
+                    placeholder="Type your answer here..."
+                    className="flex-1 px-4 py-2 rounded-xl border border-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                    onKeyDown={(e) => e.key === 'Enter' && handleAnswerSubmit()}
+                  />
+                  <button 
+                    onClick={handleAnswerSubmit}
+                    className="px-6 py-2 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 transition-colors"
+                  >
+                    Submit
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
             {isTyping && (
               <div className="flex gap-4">
-                <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center shrink-0 mt-1">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-1">
                   <Bot size={18} />
                 </div>
-                <div className="bg-white border border-surface-container-high p-4 rounded-2xl flex gap-1">
-                  <div className="w-1.5 h-1.5 bg-primary/30 rounded-full animate-bounce"></div>
-                  <div className="w-1.5 h-1.5 bg-primary/30 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                  <div className="w-1.5 h-1.5 bg-primary/30 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                <div className="bg-inherit text-on-surface p-4 rounded-2xl flex items-center gap-2">
+                  <Loader2 size={16} className="animate-spin text-primary" />
+                  <span className="text-xs font-medium text-on-surface-variant">
+                    {activeTask ? `Agent is performing ${activeTask.status === 'paused' ? 'security check' : 'automation'}...` : 'Agent is thinking...'}
+                  </span>
                 </div>
               </div>
             )}

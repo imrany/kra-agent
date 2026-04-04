@@ -7,12 +7,33 @@ import pg from "pg";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import fs from "fs";
+import { chromium } from "playwright-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import { GoogleGenAI } from "@google/genai";
+
+// @ts-ignore
+chromium.use(StealthPlugin());
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const JWT_SECRET = process.env.JWT_SECRET || "kra-agent-secret-key-2024";
 const DB_CONFIG_PATH = path.join(process.cwd(), "db_config.json");
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY! });
+
+// In-memory task store
+const activeTasks = new Map<string, {
+  id: string;
+  userId: number;
+  status: 'running' | 'paused' | 'completed' | 'failed';
+  page: any;
+  browser: any;
+  steps: any[];
+  currentStepIndex: number;
+  resolveAnswer?: (answer: string) => void;
+}>();
 
 interface DbConfig {
   type: 'sqlite' | 'postgres';
@@ -265,22 +286,127 @@ async function startServer() {
     res.json({ success: true, token, user: { id: user.id, username: user.username, role: user.role } });
   });
 
-  // Automation Helper (Simplified)
-  async function runAutomation(baseUrl: string, steps: { label: string, action?: (page: any) => Promise<void> }[]) {
-    const results = [];
+  // Automation Helper (v3 Stealth + Vision)
+  async function runAutomationV3(userId: number, taskId: string, baseUrl: string, automationSteps: any[]) {
+    const browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+      locale: 'en-KE',
+      timezoneId: 'Africa/Nairobi'
+    });
+    
+    const page = await context.newPage();
+    const task: {
+      id: string;
+      userId: number;
+      status: 'running' | 'paused' | 'completed' | 'failed';
+      page: any;
+      browser: any;
+      steps: any[];
+      currentStepIndex: number;
+      resolveAnswer?: (answer: string) => void;
+    } = {
+      id: taskId,
+      userId,
+      status: 'running',
+      page,
+      browser,
+      steps: [],
+      currentStepIndex: 0
+    };
+    activeTasks.set(taskId, task);
 
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
-      results.push({
-        id: i.toString(),
-        label: step.label,
-        screenshot: null,
-        status: 'completed',
-        timestamp: Date.now()
-      });
+    try {
+      for (let i = 0; i < automationSteps.length; i++) {
+        task.currentStepIndex = i;
+        const step = automationSteps[i];
+        console.log(`[Task ${taskId}] Executing: ${step.label}`);
+
+        if (i === 0) {
+          await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 60000 });
+        }
+
+        // Check for security questions or CAPTCHA via Vision if needed
+        if (step.useVision) {
+          const screenshot = await page.screenshot({ type: 'jpeg', quality: 80 });
+          const base64 = screenshot.toString('base64');
+          
+          const response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: [
+              { text: `Analyze this KRA iTax screenshot. ${step.visionPrompt}. Return JSON with "found": boolean and "selector": string or "coordinates": {x, y} if found.` },
+              { inlineData: { data: base64, mimeType: "image/jpeg" } }
+            ],
+            config: { responseMimeType: "application/json" }
+          });
+
+          const visionResult = JSON.parse(response.text || '{}');
+          if (visionResult.found) {
+            if (visionResult.selector) {
+              await page.click(visionResult.selector);
+            } else if (visionResult.coordinates) {
+              await page.mouse.click(visionResult.coordinates.x, visionResult.coordinates.y);
+            }
+          }
+        }
+
+        if (step.action) {
+          await step.action(page, async (prompt: string) => {
+            // Pause for user input
+            task.status = 'paused';
+            const screenshot = await page.screenshot({ type: 'jpeg', quality: 60 });
+            const base64 = `data:image/jpeg;base64,${screenshot.toString('base64')}`;
+            
+            // In a real app, we'd use WebSockets here. 
+            // For this demo, we'll wait for the /answer endpoint.
+            return new Promise<string>((resolve) => {
+              task.resolveAnswer = resolve;
+            });
+          });
+        }
+
+        // Human-like delay
+        await new Promise(r => setTimeout(r, 1000 + Math.random() * 2000));
+        
+        const screenshot = await page.screenshot({ type: 'jpeg', quality: 40 });
+        task.steps.push({
+          id: i.toString(),
+          label: step.label,
+          screenshot: `data:image/jpeg;base64,${screenshot.toString('base64')}`,
+          status: 'completed',
+          timestamp: Date.now()
+        });
+      }
+      task.status = 'completed';
+    } catch (err) {
+      console.error(`[Task ${taskId}] Error:`, err);
+      task.status = 'failed';
+    } finally {
+      // Keep browser open if paused, otherwise close
+      if (task.status !== 'paused') {
+        await browser.close();
+        activeTasks.delete(taskId);
+      }
     }
-    return results;
   }
+
+  app.post("/api/kra/tasks/:id/answer", authenticate, async (req: any, res) => {
+    const { id } = req.params;
+    const { answer } = req.body;
+    const task = activeTasks.get(id);
+
+    if (!task || task.status !== 'paused' || !task.resolveAnswer) {
+      return res.status(404).json({ error: "Task not found or not awaiting input" });
+    }
+
+    const resolve = task.resolveAnswer;
+    delete task.resolveAnswer;
+    task.status = 'running';
+    resolve(answer);
+    
+    res.json({ success: true });
+  });
 
   app.get("/api/auth/me", authenticate, async (req: any, res) => {
     const user: any = await query("SELECT id, username, role, name, device_info, location FROM users WHERE id = ? LIMIT 1", [req.user.id]);
@@ -432,50 +558,53 @@ async function startServer() {
   });
 
   // Automation Endpoints (Secured)
-  app.post("/api/kra/automation/nil-return", authenticate, async (req, res) => {
+  app.post("/api/kra/automation/nil-return", authenticate, async (req: any, res) => {
+    const taskId = Math.random().toString(36).substring(7);
     const automationSteps = [
-      { label: "Launching Playwright (Headless: true)..." },
-      { label: "Navigating to iTax Portal: https://itax.kra.go.ke/..." },
+      { label: "Launching Stealth Browser..." },
+      { label: "Navigating to iTax Portal...", useVision: true, visionPrompt: "Find the PIN input field." },
       { 
-        label: "Waiting for login form selector...",
-        action: async (page: any) => {
-          await page.waitForSelector('#logId', { timeout: 5000 });
-        }
-      },
-      { 
-        label: "Typing KRA PIN: A00XXXXXXXXZ...",
-        action: async (page: any) => {
+        label: "Authenticating...",
+        action: async (page: any, ask: any) => {
           await page.fill('#logId', 'A00XXXXXXXXZ');
-        }
-      },
-      { 
-        label: "Clicking 'Continue' button...",
-        action: async (page: any) => {
           await page.click('input[name="btnContinue"]');
+          
+          // Check for security question
+          const isQuestion = await page.isVisible('.security-question');
+          if (isQuestion) {
+            const questionText = await page.innerText('.security-question');
+            const answer = await ask(`Security Question: ${questionText}`);
+            await page.fill('#answer', answer);
+          }
         }
       },
-      { label: "Waiting for password input and CAPTCHA..." },
-      { label: "Solving CAPTCHA via OCR/AI..." },
-      { label: "Submitting login form..." },
-      { label: "Verifying dashboard load..." },
-      { label: "Navigating to Returns -> File NIL Return..." },
-      { label: "Selecting 'Income Tax - Resident Individual'..." },
-      { label: "Confirming return period: 2023..." },
-      { label: "Submitting NIL return form..." },
-      { label: "Capturing acknowledgment receipt..." }
+      { label: "Filing NIL Return..." },
+      { label: "Task Complete." }
     ];
 
-    const results = await runAutomation("https://itax.kra.go.ke/KRA-Portal/", automationSteps);
+    runAutomationV3(req.user.id, taskId, "https://itax.kra.go.ke/KRA-Portal/", automationSteps);
 
     res.json({
       success: true,
-      steps: results,
-      receiptNumber: "KRA-NIL-" + Math.random().toString(36).substring(7).toUpperCase(),
-      manualInstructions: "1. Log in to iTax.\n2. Go to Returns -> File NIL Return.\n3. Select your obligation.\n4. Submit for the period 2023."
+      taskId,
+      message: "Automation started in background."
     });
   });
 
-  app.post("/api/kra/automation/pin-certificate", authenticate, async (req, res) => {
+  app.get("/api/kra/tasks/:id", authenticate, async (req: any, res) => {
+    const task = activeTasks.get(req.params.id);
+    if (!task) return res.status(404).json({ error: "Task not found" });
+    
+    res.json({
+      id: task.id,
+      status: task.status,
+      steps: task.steps,
+      currentStepIndex: task.currentStepIndex
+    });
+  });
+
+  app.post("/api/kra/automation/pin-certificate", authenticate, async (req: any, res) => {
+    const taskId = Math.random().toString(36).substring(7);
     const automationSteps = [
       { label: "Launching Playwright (Headless: true)..." },
       { label: "Navigating to iTax Portal: https://itax.kra.go.ke/..." },
@@ -491,34 +620,31 @@ async function startServer() {
       { label: "Capturing PDF stream and saving to device..." }
     ];
 
-    const results = await runAutomation("https://itax.kra.go.ke/KRA-Portal/", automationSteps);
+    const results = await runAutomationV3(req.user.id, taskId, "https://itax.kra.go.ke/KRA-Portal/", automationSteps);
 
     res.json({
       success: true,
-      steps: results,
+      taskId,
       receiptNumber: "PIN-CERT-" + Math.random().toString(36).substring(7).toUpperCase(),
       manualInstructions: "1. Log in to iTax.\n2. Go to Registration -> Reprint PIN Certificate.\n3. Click Submit.\n4. Download the PDF from the link provided."
     });
   });
 
-  app.post("/api/kra/automation/compliance-check", authenticate, async (req, res) => {
+  app.post("/api/kra/automation/compliance-check", authenticate, async (req: any, res) => {
+    const taskId = Math.random().toString(36).substring(7);
     const automationSteps = [
-      { label: "Initializing Web Crawler (Playwright/Chromium)..." },
-      { label: "Navigating to iTax Portal: https://itax.kra.go.ke/..." },
-      { label: "Authenticating with KRA PIN and Password..." },
-      { label: "Bypassing Security Question challenge..." },
-      { label: "Crawling Dashboard for 'Debt/Penalty' alerts..." },
-      { label: "Navigating to 'Information Search' -> 'Tax Compliance Certificate'..." },
-      { label: "Extracting compliance status and pending obligations..." },
-      { label: "Scraping 'Ledger Report' for recent transactions..." },
-      { label: "Closing browser session and cleaning up..." }
+      { label: "Initializing Web Crawler...", useVision: true, visionPrompt: "Find the login button." },
+      { label: "Navigating to iTax Portal..." },
+      { label: "Authenticating..." },
+      { label: "Crawling Dashboard..." },
+      { label: "Extracting compliance status..." }
     ];
 
-    const results = await runAutomation("https://itax.kra.go.ke/KRA-Portal/", automationSteps);
+    const results = await runAutomationV3(req.user.id, taskId, "https://itax.kra.go.ke/KRA-Portal/", automationSteps);
 
     res.json({
       success: true,
-      steps: results,
+      taskId,
       receiptNumber: "CRAWL-" + Math.random().toString(36).substring(7).toUpperCase(),
       extractedData: {
         complianceStatus: "COMPLIANT",

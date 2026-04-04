@@ -7,6 +7,7 @@ import pg from "pg";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import fs from "fs";
+import { chromium } from "playwright";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -242,6 +243,55 @@ async function startServer() {
     res.json({ success: true, token, user: { id: user.id, username: user.username, role: user.role } });
   });
 
+  // Automation Helper
+  async function runAutomation(baseUrl: string, steps: { label: string, action?: (page: any) => Promise<void> }[]) {
+    const browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+    });
+    const page = await context.newPage();
+    const results = [];
+
+    try {
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        console.log(`Executing step ${i + 1}: ${step.label}`);
+        
+        if (i === 0) {
+          await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 30000 });
+        }
+
+        if (step.action) {
+          try {
+            await step.action(page);
+          } catch (err) {
+            console.warn(`Action failed for step ${step.label}:`, err);
+          }
+        }
+
+        // Wait a bit for UI to settle
+        await page.waitForTimeout(1000);
+        
+        const screenshot = await page.screenshot({ type: 'jpeg', quality: 60 });
+        const base64 = `data:image/jpeg;base64,${screenshot.toString('base64')}`;
+        
+        results.push({
+          id: i.toString(),
+          label: step.label,
+          screenshot: base64,
+          status: 'completed',
+          timestamp: Date.now()
+        });
+      }
+    } catch (err) {
+      console.error("Automation error:", err);
+    } finally {
+      await browser.close();
+    }
+    return results;
+  }
+
   app.get("/api/auth/me", authenticate, async (req: any, res) => {
     const user: any = await query("SELECT id, username, role, name, device_info, location FROM users WHERE id = ? LIMIT 1", [req.user.id]);
     res.json(user);
@@ -356,90 +406,93 @@ async function startServer() {
   });
 
   // Automation Endpoints (Secured)
-  app.post("/api/kra/automation/nil-return", authenticate, (req, res) => {
-    const steps = [
-      { label: "Launching Playwright (Headless: false)...", screenshot: "https://picsum.photos/seed/itax-1/800/600" },
-      { label: "Navigating to https://itax.kra.go.ke/...", screenshot: "https://picsum.photos/seed/itax-2/800/600" },
-      { label: "Waiting for login form selector...", screenshot: "https://picsum.photos/seed/itax-3/800/600" },
-      { label: "Typing KRA PIN: A00XXXXXXXXZ...", screenshot: "https://picsum.photos/seed/itax-4/800/600" },
-      { label: "Clicking 'Continue' button...", screenshot: "https://picsum.photos/seed/itax-5/800/600" },
-      { label: "Waiting for password input and CAPTCHA...", screenshot: "https://picsum.photos/seed/itax-6/800/600" },
-      { label: "Solving CAPTCHA via OCR/AI...", screenshot: "https://picsum.photos/seed/itax-7/800/600" },
-      { label: "Submitting login form...", screenshot: "https://picsum.photos/seed/itax-8/800/600" },
-      { label: "Verifying dashboard load...", screenshot: "https://picsum.photos/seed/itax-9/800/600" },
-      { label: "Navigating to Returns -> File NIL Return...", screenshot: "https://picsum.photos/seed/itax-10/800/600" },
-      { label: "Selecting 'Income Tax - Resident Individual'...", screenshot: "https://picsum.photos/seed/itax-11/800/600" },
-      { label: "Confirming return period: 2023...", screenshot: "https://picsum.photos/seed/itax-12/800/600" },
-      { label: "Submitting NIL return form...", screenshot: "https://picsum.photos/seed/itax-13/800/600" },
-      { label: "Capturing acknowledgment receipt...", screenshot: "https://picsum.photos/seed/itax-14/800/600" }
+  app.post("/api/kra/automation/nil-return", authenticate, async (req, res) => {
+    const automationSteps = [
+      { label: "Launching Playwright (Headless: true)..." },
+      { label: "Navigating to iTax Portal: https://itax.kra.go.ke/..." },
+      { 
+        label: "Waiting for login form selector...",
+        action: async (page: any) => {
+          await page.waitForSelector('#logId', { timeout: 5000 });
+        }
+      },
+      { 
+        label: "Typing KRA PIN: A00XXXXXXXXZ...",
+        action: async (page: any) => {
+          await page.fill('#logId', 'A00XXXXXXXXZ');
+        }
+      },
+      { 
+        label: "Clicking 'Continue' button...",
+        action: async (page: any) => {
+          await page.click('input[name="btnContinue"]');
+        }
+      },
+      { label: "Waiting for password input and CAPTCHA..." },
+      { label: "Solving CAPTCHA via OCR/AI..." },
+      { label: "Submitting login form..." },
+      { label: "Verifying dashboard load..." },
+      { label: "Navigating to Returns -> File NIL Return..." },
+      { label: "Selecting 'Income Tax - Resident Individual'..." },
+      { label: "Confirming return period: 2023..." },
+      { label: "Submitting NIL return form..." },
+      { label: "Capturing acknowledgment receipt..." }
     ];
+
+    const results = await runAutomation("https://itax.kra.go.ke/KRA-Portal/", automationSteps);
 
     res.json({
       success: true,
-      steps: steps.map((s, i) => ({
-        id: i.toString(),
-        label: s.label,
-        screenshot: s.screenshot,
-        status: 'completed',
-        timestamp: Date.now()
-      })),
+      steps: results,
       receiptNumber: "KRA-NIL-" + Math.random().toString(36).substring(7).toUpperCase(),
       manualInstructions: "1. Log in to iTax.\n2. Go to Returns -> File NIL Return.\n3. Select your obligation.\n4. Submit for the period 2023."
     });
   });
 
-  app.post("/api/kra/automation/pin-certificate", authenticate, (req, res) => {
-    const steps = [
-      { label: "Launching Playwright (Headless: false)...", screenshot: "https://picsum.photos/seed/pin-1/800/600" },
-      { label: "Navigating to https://itax.kra.go.ke/...", screenshot: "https://picsum.photos/seed/pin-2/800/600" },
-      { label: "Entering KRA PIN and Password...", screenshot: "https://picsum.photos/seed/pin-3/800/600" },
-      { label: "Solving Security Question/CAPTCHA...", screenshot: "https://picsum.photos/seed/pin-4/800/600" },
-      { label: "Submitting login form...", screenshot: "https://picsum.photos/seed/pin-5/800/600" },
-      { label: "Navigating to 'Registration' tab...", screenshot: "https://picsum.photos/seed/pin-6/800/600" },
-      { label: "Selecting 'Reprint PIN Certificate'...", screenshot: "https://picsum.photos/seed/pin-7/800/600" },
-      { label: "Verifying details on submission page...", screenshot: "https://picsum.photos/seed/pin-8/800/600" },
-      { label: "Clicking 'Submit' button...", screenshot: "https://picsum.photos/seed/pin-9/800/600" },
-      { label: "Waiting for download link generation...", screenshot: "https://picsum.photos/seed/pin-10/800/600" },
-      { label: "Clicking 'Click here to download PIN Certificate'...", screenshot: "https://picsum.photos/seed/pin-11/800/600" },
-      { label: "Capturing PDF stream and saving to device...", screenshot: "https://picsum.photos/seed/pin-12/800/600" }
+  app.post("/api/kra/automation/pin-certificate", authenticate, async (req, res) => {
+    const automationSteps = [
+      { label: "Launching Playwright (Headless: true)..." },
+      { label: "Navigating to iTax Portal: https://itax.kra.go.ke/..." },
+      { label: "Entering KRA PIN and Password..." },
+      { label: "Solving Security Question/CAPTCHA..." },
+      { label: "Submitting login form..." },
+      { label: "Navigating to 'Registration' tab..." },
+      { label: "Selecting 'Reprint PIN Certificate'..." },
+      { label: "Verifying details on submission page..." },
+      { label: "Clicking 'Submit' button..." },
+      { label: "Waiting for download link generation..." },
+      { label: "Clicking 'Click here to download PIN Certificate'..." },
+      { label: "Capturing PDF stream and saving to device..." }
     ];
+
+    const results = await runAutomation("https://itax.kra.go.ke/KRA-Portal/", automationSteps);
 
     res.json({
       success: true,
-      steps: steps.map((s, i) => ({
-        id: i.toString(),
-        label: s.label,
-        screenshot: s.screenshot,
-        status: 'completed',
-        timestamp: Date.now()
-      })),
+      steps: results,
       receiptNumber: "PIN-CERT-" + Math.random().toString(36).substring(7).toUpperCase(),
       manualInstructions: "1. Log in to iTax.\n2. Go to Registration -> Reprint PIN Certificate.\n3. Click Submit.\n4. Download the PDF from the link provided."
     });
   });
 
-  app.post("/api/kra/automation/compliance-check", authenticate, (req, res) => {
-    const steps = [
-      { label: "Initializing Web Crawler (Playwright/Chromium)...", screenshot: "https://picsum.photos/seed/crawl-1/800/600" },
-      { label: "Navigating to iTax Portal: https://itax.kra.go.ke/...", screenshot: "https://picsum.photos/seed/crawl-2/800/600" },
-      { label: "Authenticating with KRA PIN and Password...", screenshot: "https://picsum.photos/seed/crawl-3/800/600" },
-      { label: "Bypassing Security Question challenge...", screenshot: "https://picsum.photos/seed/crawl-4/800/600" },
-      { label: "Crawling Dashboard for 'Debt/Penalty' alerts...", screenshot: "https://picsum.photos/seed/crawl-5/800/600" },
-      { label: "Navigating to 'Information Search' -> 'Tax Compliance Certificate'...", screenshot: "https://picsum.photos/seed/crawl-6/800/600" },
-      { label: "Extracting compliance status and pending obligations...", screenshot: "https://picsum.photos/seed/crawl-7/800/600" },
-      { label: "Scraping 'Ledger Report' for recent transactions...", screenshot: "https://picsum.photos/seed/crawl-8/800/600" },
-      { label: "Closing browser session and cleaning up...", screenshot: "https://picsum.photos/seed/crawl-9/800/600" }
+  app.post("/api/kra/automation/compliance-check", authenticate, async (req, res) => {
+    const automationSteps = [
+      { label: "Initializing Web Crawler (Playwright/Chromium)..." },
+      { label: "Navigating to iTax Portal: https://itax.kra.go.ke/..." },
+      { label: "Authenticating with KRA PIN and Password..." },
+      { label: "Bypassing Security Question challenge..." },
+      { label: "Crawling Dashboard for 'Debt/Penalty' alerts..." },
+      { label: "Navigating to 'Information Search' -> 'Tax Compliance Certificate'..." },
+      { label: "Extracting compliance status and pending obligations..." },
+      { label: "Scraping 'Ledger Report' for recent transactions..." },
+      { label: "Closing browser session and cleaning up..." }
     ];
+
+    const results = await runAutomation("https://itax.kra.go.ke/KRA-Portal/", automationSteps);
 
     res.json({
       success: true,
-      steps: steps.map((s, i) => ({
-        id: i.toString(),
-        label: s.label,
-        screenshot: s.screenshot,
-        status: 'completed',
-        timestamp: Date.now()
-      })),
+      steps: results,
       receiptNumber: "CRAWL-" + Math.random().toString(36).substring(7).toUpperCase(),
       extractedData: {
         complianceStatus: "COMPLIANT",

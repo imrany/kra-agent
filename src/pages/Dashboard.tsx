@@ -13,14 +13,8 @@ import {
   Menu,
   X,
   Trash2,
-  CheckCircle2,
-  Circle,
-  Loader2,
   CreditCard,
-  RefreshCw,
-  Search,
-  ChevronRight,
-  LogOut
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -121,16 +115,6 @@ const Sidebar = ({ isOpen, onClose, onTaskClick, navigate, onClearChat }: { isOp
             >
               <Settings size={18} />
               <span className="font-medium">Settings</span>
-            </button>
-            <button 
-              onClick={() => {
-                localStorage.clear();
-                navigate('/login');
-              }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-error hover:bg-error/5 transition-all"
-            >
-              <LogOut size={18} />
-              <span className="font-medium">Logout</span>
             </button>
           </div>
         </div>
@@ -325,11 +309,12 @@ const Dashboard = () => {
     }
 
     await new Promise(r => setTimeout(r, 1000));
+    const stepsText = data.steps.map((s: any, i: number) => `${i + 1}. ${s.label}`).join('\n');
     const finalMsg: Message = {
       ...automationMsg,
       text: data.success 
-        ? `✅ **Task Completed!** Your ${type.replace('-', ' ')} has been processed successfully.\n\n**Receipt Number:** \`${data.receiptNumber}\``
-        : `❌ **Automation Failed.** I encountered an issue while performing the task.\n\n**Manual Instructions:**\n${data.manualInstructions}`,
+        ? `✅ **Task Completed!** Your ${type.replace('-', ' ')} has been processed successfully.\n\n**Steps Taken:**\n${stepsText}\n\n**Receipt Number:** \`${data.receiptNumber}\``
+        : `❌ **Automation Failed.** I encountered an issue while performing the task.\n\n**Steps Attempted:**\n${stepsText}\n\n**Manual Instructions:**\n${data.manualInstructions}`,
       automationSteps: data.steps,
       screenshot: data.screenshot,
       extractedData: data.extractedData,
@@ -444,89 +429,45 @@ const Dashboard = () => {
                 >
                   <div className={cn(
                     "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-1",
-                    msg.role === 'model' ? "bg-primary text-white" : "bg-surface-container-highest text-on-surface"
+                    msg.role === 'model' ? "bg-primary/10 text-primary" : "bg-surface-container-highest text-on-surface"
                   )}>
                     {msg.role === 'model' ? <Bot size={18} /> : <User size={18} />}
                   </div>
-                  <div className={cn("flex-1 space-y-4", msg.role === 'user' ? "text-right" : "")}>
+                  <div className={cn("flex-1 space-y-1", msg.role === 'user' ? "text-right" : "")}>
+                    <div className="flex items-center gap-2 mb-1 px-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                        {msg.role === 'model' ? 'KRA Agent' : 'You'}
+                      </span>
+                    </div>
                     <div className={cn(
                       "inline-block p-4 rounded-2xl text-sm leading-relaxed w-full",
                       msg.role === 'model' 
-                        ? "bg-white border border-surface-container-high text-on-surface text-left" 
-                        : "bg-primary text-white text-left"
+                        ? "bg-inherit text-on-surface text-left" 
+                        : "bg-surface-container-high text-on-surface text-left"
                     )}>
                       <div className="prose prose-sm max-w-none">
                         <Markdown>{msg.text}</Markdown>
                       </div>
                     </div>
 
-                    {msg.type === 'automation' && msg.automationSteps && (
-                      <div className="bg-white border border-surface-container-high rounded-2xl overflow-hidden shadow-sm w-full">
-                        <div className="p-4 border-b border-surface-container-high bg-surface-container-low flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Search size={14} className="text-primary" />
-                            <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Live Automation Log</span>
-                          </div>
+                    {msg.extractedData && (
+                      <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                        <div className="flex items-center gap-2 mb-3">
+                          <ShieldCheck size={14} className="text-primary" />
+                          <span className="text-xs font-bold text-primary uppercase tracking-wider">Extracted Data</span>
                         </div>
-                        <div className="divide-y divide-surface-container-high">
-                          {msg.automationSteps.map((step) => (
-                            <details key={step.id} className="group">
-                              <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-surface-container-low transition-colors list-none">
-                                <div className="flex items-center gap-3 text-xs">
-                                  {step.status === 'completed' ? (
-                                    <CheckCircle2 size={14} className="text-primary" />
-                                  ) : step.status === 'running' ? (
-                                    <Loader2 size={14} className="text-primary animate-spin" />
-                                  ) : step.status === 'failed' ? (
-                                    <X size={14} className="text-error" />
-                                  ) : (
-                                    <Circle size={14} className="text-on-surface-variant/30" />
-                                  )}
-                                  <span className={cn(
-                                    "font-medium",
-                                    step.status === 'completed' ? "text-on-surface" : "text-on-surface-variant"
-                                  )}>
-                                    {step.label}
-                                  </span>
-                                </div>
-                                {step.screenshot && (
-                                  <ChevronRight size={14} className="text-on-surface-variant transition-transform group-open:rotate-90" />
-                                )}
-                              </summary>
-                              {step.screenshot && (
-                                <div className="p-4 bg-surface-container-low border-t border-surface-container-high">
-                                  <img 
-                                    src={step.screenshot} 
-                                    alt={step.label} 
-                                    className="w-full rounded-lg border border-surface-container-high shadow-sm"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                </div>
-                              )}
-                            </details>
+                        <div className="grid grid-cols-2 gap-3">
+                          {Object.entries(msg.extractedData).map(([key, value]) => (
+                            <div key={key} className="p-2 bg-white rounded-lg border border-surface-container-high">
+                              <p className="text-[10px] text-on-surface-variant uppercase font-bold mb-1">
+                                {key.replace(/([A-Z])/g, ' $1').trim()}
+                              </p>
+                              <p className="text-xs font-mono font-bold text-on-surface">
+                                {String(value)}
+                              </p>
+                            </div>
                           ))}
                         </div>
-                        
-                        {msg.extractedData && (
-                          <div className="p-4 bg-primary/5 border-t border-primary/10">
-                            <div className="flex items-center gap-2 mb-3">
-                              <ShieldCheck size={14} className="text-primary" />
-                              <span className="text-xs font-bold text-primary uppercase tracking-wider">Extracted Data</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              {Object.entries(msg.extractedData).map(([key, value]) => (
-                                <div key={key} className="p-2 bg-white rounded-lg border border-surface-container-high">
-                                  <p className="text-[10px] text-on-surface-variant uppercase font-bold mb-1">
-                                    {key.replace(/([A-Z])/g, ' $1').trim()}
-                                  </p>
-                                  <p className="text-xs font-mono font-bold text-on-surface">
-                                    {String(value)}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>

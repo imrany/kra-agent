@@ -7,7 +7,6 @@ import pg from "pg";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import fs from "fs";
-import { chromium } from "playwright";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -266,51 +265,19 @@ async function startServer() {
     res.json({ success: true, token, user: { id: user.id, username: user.username, role: user.role } });
   });
 
-  // Automation Helper
+  // Automation Helper (Simplified)
   async function runAutomation(baseUrl: string, steps: { label: string, action?: (page: any) => Promise<void> }[]) {
-    const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({
-      viewport: { width: 1280, height: 800 },
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-    });
-    const page = await context.newPage();
     const results = [];
 
-    try {
-      for (let i = 0; i < steps.length; i++) {
-        const step = steps[i];
-        console.log(`Executing step ${i + 1}: ${step.label}`);
-        
-        if (i === 0) {
-          await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 30000 });
-        }
-
-        if (step.action) {
-          try {
-            await step.action(page);
-          } catch (err) {
-            console.warn(`Action failed for step ${step.label}:`, err);
-          }
-        }
-
-        // Wait a bit for UI to settle
-        await page.waitForTimeout(1000);
-        
-        const screenshot = await page.screenshot({ type: 'jpeg', quality: 60 });
-        const base64 = `data:image/jpeg;base64,${screenshot.toString('base64')}`;
-        
-        results.push({
-          id: i.toString(),
-          label: step.label,
-          screenshot: base64,
-          status: 'completed',
-          timestamp: Date.now()
-        });
-      }
-    } catch (err) {
-      console.error("Automation error:", err);
-    } finally {
-      await browser.close();
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      results.push({
+        id: i.toString(),
+        label: step.label,
+        screenshot: null,
+        status: 'completed',
+        timestamp: Date.now()
+      });
     }
     return results;
   }

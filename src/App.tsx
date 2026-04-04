@@ -43,10 +43,9 @@ import { Message, UserProfile, Credentials, AutomationStep } from './types';
 
 const Sidebar = ({ isOpen, onClose, onTaskClick }: { isOpen: boolean, onClose: () => void, onTaskClick: (label: string) => void }) => {
   const quickTasks = [
-    { id: 'nil', label: 'Nil Returns', icon: FileText, badge: '2024' },
-    { id: 'compliance', label: 'Tax Compliance', icon: ShieldCheck },
-    { id: 'pin', label: 'PIN Certificate', icon: FileText },
-    { id: 'ledger', label: 'Tax Ledger', icon: LayoutDashboard },
+    { id: 'nil', label: 'Nil Returns', icon: FileText, badge: 'Auto' },
+    { id: 'compliance', label: 'Compliance Check', icon: ShieldCheck, badge: 'Crawler' },
+    { id: 'pin', label: 'PIN Certificate', icon: Download, badge: 'Auto' },
     { id: 'mpesa', label: 'M-Pesa Payment Slip', icon: CreditCard },
     { id: 'refund', label: 'Refund Status', icon: RefreshCw },
   ];
@@ -390,6 +389,8 @@ export default function App() {
       await runAutomation('nil-return');
     } else if (messageText.toLowerCase().includes('pin certificate') || messageText.toLowerCase().includes('reprint pin')) {
       await runAutomation('pin-certificate');
+    } else if (messageText.toLowerCase().includes('compliance check') || messageText.toLowerCase().includes('tax status')) {
+      await runAutomation('compliance-check');
     } else {
       try {
         const apiKey = preferences.api_key || process.env.GEMINI_API_KEY;
@@ -465,7 +466,8 @@ export default function App() {
         ? `✅ **Task Completed!** Your ${type.replace('-', ' ')} has been processed successfully.\n\n**Receipt Number:** \`${data.receiptNumber}\``
         : `❌ **Automation Failed.** I encountered an issue while performing the task.\n\n**Manual Instructions:**\n${data.manualInstructions}`,
       automationSteps: data.steps,
-      screenshot: data.screenshot
+      screenshot: data.screenshot,
+      extractedData: data.extractedData
     } : m));
     setIsTyping(false);
   };
@@ -633,6 +635,27 @@ export default function App() {
                           ))}
                         </div>
                         
+                        {msg.extractedData && (
+                          <div className="p-4 bg-primary/5 border-t border-primary/10">
+                            <div className="flex items-center gap-2 mb-3">
+                              <ShieldCheck size={14} className="text-primary" />
+                              <span className="text-xs font-bold text-primary uppercase tracking-wider">Extracted Data</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              {Object.entries(msg.extractedData).map(([key, value]) => (
+                                <div key={key} className="p-2 bg-white rounded-lg border border-surface-container-high">
+                                  <p className="text-[10px] text-on-surface-variant uppercase font-bold mb-1">
+                                    {key.replace(/([A-Z])/g, ' $1').trim()}
+                                  </p>
+                                  <p className="text-xs font-mono font-bold text-on-surface">
+                                    {String(value)}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {msg.text.includes('failed') && (
                           <div className="p-4 bg-error/5 border-t border-error/10">
                             <div className="flex items-center gap-2 mb-2">

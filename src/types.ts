@@ -6,6 +6,7 @@ export interface Message {
   type?: 'text' | 'automation' | 'info';
   automationSteps?: AutomationStep[];
   screenshot?: string;
+  extractedData?: any;
 }
 
 export interface AutomationStep {

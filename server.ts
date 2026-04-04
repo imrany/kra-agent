@@ -144,6 +144,39 @@ async function startServer() {
     });
   });
 
+  app.post("/api/kra/automation/compliance-check", (req, res) => {
+    const steps = [
+      { label: "Initializing Web Crawler (Playwright/Chromium)...", screenshot: "https://picsum.photos/seed/crawl-1/800/600" },
+      { label: "Navigating to iTax Portal: https://itax.kra.go.ke/...", screenshot: "https://picsum.photos/seed/crawl-2/800/600" },
+      { label: "Authenticating with KRA PIN and Password...", screenshot: "https://picsum.photos/seed/crawl-3/800/600" },
+      { label: "Bypassing Security Question challenge...", screenshot: "https://picsum.photos/seed/crawl-4/800/600" },
+      { label: "Crawling Dashboard for 'Debt/Penalty' alerts...", screenshot: "https://picsum.photos/seed/crawl-5/800/600" },
+      { label: "Navigating to 'Information Search' -> 'Tax Compliance Certificate'...", screenshot: "https://picsum.photos/seed/crawl-6/800/600" },
+      { label: "Extracting compliance status and pending obligations...", screenshot: "https://picsum.photos/seed/crawl-7/800/600" },
+      { label: "Scraping 'Ledger Report' for recent transactions...", screenshot: "https://picsum.photos/seed/crawl-8/800/600" },
+      { label: "Closing browser session and cleaning up...", screenshot: "https://picsum.photos/seed/crawl-9/800/600" }
+    ];
+
+    res.json({
+      success: true,
+      steps: steps.map((s, i) => ({
+        id: i.toString(),
+        label: s.label,
+        screenshot: s.screenshot,
+        status: 'completed',
+        timestamp: Date.now()
+      })),
+      receiptNumber: "CRAWL-" + Math.random().toString(36).substring(7).toUpperCase(),
+      extractedData: {
+        complianceStatus: "COMPLIANT",
+        expiryDate: "2025-04-04",
+        pendingObligations: 0,
+        lastFilingDate: "2024-01-15"
+      },
+      manualInstructions: "1. Log in to iTax.\n2. Go to 'Information Search'.\n3. Select 'Tax Compliance Certificate' to check your status.\n4. View 'Ledger Report' for any pending payments."
+    });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

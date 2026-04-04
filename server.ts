@@ -68,6 +68,16 @@ async function initDb() {
         value TEXT NOT NULL
       );
     `);
+
+    // Migration: Ensure user_id exists in credentials (for older versions)
+    try {
+      const info = db.prepare("PRAGMA table_info(credentials)").all();
+      if (!info.find((c: any) => c.name === 'user_id')) {
+        db.exec("ALTER TABLE credentials ADD COLUMN user_id INTEGER REFERENCES users(id)");
+      }
+    } catch (err) {
+      console.error("Migration failed:", err);
+    }
   } else {
     pgPool = new pg.Pool(dbConfig.pgConfig);
     const client = await pgPool.connect();
@@ -112,14 +122,18 @@ async function initDb() {
 // Helper for DB queries
 const query = async (sql: string, params: any[] = []) => {
   if (dbConfig.type === 'sqlite') {
-    if (sql.toLowerCase().startsWith('select')) {
-      if (sql.toLowerCase().includes('limit 1')) {
-        return db.prepare(sql).get(...params);
+    let sqliteSql = sql.replace(/RETURNING\s+\w+/gi, '').trim();
+    if (sqliteSql.toLowerCase().startsWith('select')) {
+      if (sqliteSql.toLowerCase().includes('limit 1')) {
+        return db.prepare(sqliteSql).get(...params);
       }
-      return db.prepare(sql).all(...params);
+      return db.prepare(sqliteSql).all(...params);
     } else {
-      const result = db.prepare(sql).run(...params);
-      return { lastInsertRowid: result.lastInsertRowid, changes: result.changes };
+      const result = db.prepare(sqliteSql).run(...params);
+      return { 
+        lastInsertRowid: typeof result.lastInsertRowid === 'bigint' ? Number(result.lastInsertRowid) : result.lastInsertRowid, 
+        changes: result.changes 
+      };
     }
   } else {
     // Convert SQLite ? to Postgres $1, $2...
@@ -171,12 +185,21 @@ const isAdmin = (req: any, res: any, next: any) => {
 };
 
 async function startServer() {
-  await initDb();
+  try {
+    await initDb();
+    console.log("Database initialized successfully");
+  } catch (err) {
+    console.error("Failed to initialize database:", err);
+    // Continue anyway so Vite can serve the frontend and admin can fix config
+  }
   
   const app = express();
   const PORT = 3000;
 
   app.use(express.json());
+
+  // Health check
+  app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 
   // API: Auth
   app.post("/api/auth/register", async (req, res) => {
@@ -237,7 +260,7 @@ async function startServer() {
 
   app.get("/api/admin/settings", authenticate, isAdmin, async (req, res) => {
     const rows: any = await query("SELECT key, value FROM settings");
-    const settings = rows.reduce((acc: any, row: any) => {
+    const settings = (rows || []).reduce((acc: any, row: any) => {
       acc[row.key] = row.value;
       return acc;
     }, {});
@@ -298,7 +321,7 @@ async function startServer() {
   // API: Preferences (User specific)
   app.get("/api/preferences", authenticate, async (req: any, res) => {
     const rows: any = await query("SELECT key, value FROM preferences");
-    const prefs = rows.reduce((acc: any, row: any) => {
+    const prefs = (rows || []).reduce((acc: any, row: any) => {
       acc[row.key] = row.value;
       return acc;
     }, {});
@@ -416,6 +439,12 @@ async function startServer() {
       },
       manualInstructions: "1. Log in to iTax.\n2. Go to 'Information Search'.\n3. Select 'Tax Compliance Certificate' to check your status.\n4. View 'Ledger Report' for any pending payments."
     });
+  });
+
+  // Global Error Handler
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error("Unhandled Error:", err);
+    res.status(500).json({ error: "Internal Server Error", details: err.message });
   });
 
   // Vite middleware for development

@@ -163,6 +163,15 @@ const Dashboard = () => {
           return;
         }
 
+        if (!credsRes.ok || !prefsRes.ok || !userRes.ok) {
+          throw new Error(`Server error: ${credsRes.status} ${prefsRes.status} ${userRes.status}`);
+        }
+
+        const contentType = credsRes.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          throw new Error("Server returned non-JSON response. The server might be restarting or misconfigured.");
+        }
+
         const credsData = await credsRes.json();
         const prefsData = await prefsRes.json();
         const userData = await userRes.json();

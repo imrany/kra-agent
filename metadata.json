@@ -1,0 +1,5 @@
+{
+  "name": "KRA Digital Assistant",
+  "description": "An AI-powered assistant for Kenyan citizens to access KRA services, file returns, and get tax support.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --font-headline: "Instrument Serif", serif;
+  
+  --color-primary: #1b6d24; /* Green for KRA Agent theme */
+  --color-primary-container: #217128;
+  --color-primary-fixed: #a3f69c;
+  --color-secondary: #ba0013; /* Red accent */
+  --color-secondary-container: #ffdad6;
+  --color-tertiary: #006190;
+  --color-tertiary-fixed: #cbe6ff;
+  
+  --color-surface: #fcfdf6;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f3f5ed;
+  --color-surface-container: #e7e9e1;
+  --color-surface-container-high: #dbddd5;
+  --color-surface-container-highest: #cfd1ca;
+  
+  --color-on-surface: #1a1c18;
+  --color-on-surface-variant: #44483d;
+  
+  --radius-md: 0.5rem;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-on-surface antialiased;
+    font-family: var(--font-sans);
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif font-medium tracking-tight;
+  }
+
+  code, pre {
+    font-family: var(--font-mono);
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-white/80 backdrop-blur-md border border-white/20;
+  }
+  
+  .primary-gradient {
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-container) 100%);
+  }
+}
